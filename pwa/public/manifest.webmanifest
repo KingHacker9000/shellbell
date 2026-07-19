@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Shellbell",
+  "short_name": "Shellbell",
+  "description": "Private terminal attention notifications",
+  "start_url": "/?view=rings",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#131c2c",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

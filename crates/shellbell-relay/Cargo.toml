@@ -1,0 +1,31 @@
+[package]
+name = "shellbell-relay"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+chrono.workspace = true
+cookie.workspace = true
+http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+shellbell-core.workspace = true
+shellbell-protocol.workspace = true
+sqlx.workspace = true
+subtle.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+web-push.workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1.3"
+tempfile = "3.24.0"

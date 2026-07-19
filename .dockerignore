@@ -1,0 +1,10 @@
+.git
+.gitignore
+target
+pwa/node_modules
+pwa/dist
+deploy/.env
+data
+*.db
+*.sqlite*
+coverage

@@ -1,28 +1,17 @@
-# Rust
 /target/
-**/*.rs.bk
-
-# Node
-node_modules/
-dist/
-.vite/
-
-# Environment and secrets
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-
-# Local state
+/pwa/node_modules/
+/pwa/dist/
+/.env
+**/.env
+!deploy/.env.example
 *.db
 *.db-shm
 *.db-wal
-
-# Editors
-.vscode/
-.idea/
-
-# OS
+*.sqlite
+*.sqlite3
+/data/
+owner-bootstrap-token
+*.pem
+*.key
 .DS_Store
-Thumbs.db
+coverage/
