@@ -1,0 +1,85 @@
+name: Linux CI
+
+on:
+  push:
+    branches: [main, "milestone/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-linux-x86_64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shell test dependencies
+        run: sudo apt-get update && sudo apt-get install -y zsh fish
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust and shell integration tests
+        run: cargo test --workspace --all-targets --locked
+
+  pwa:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: pwa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: pwa/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm run validate:manifest
+
+  linux-arm64-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM64 compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97"
+          targets: aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+      - name: ARM64 client compile check
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+        run: cargo check --locked --target aarch64-unknown-linux-gnu -p shellbell-cli -p shellbell-local -p shellbell-protocol
+
+  docker-and-staged-content:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose validation
+        env:
+          SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ci-placeholder-owner-token-at-least-32-bytes
+          SHELLBELL_VAPID_PUBLIC_KEY: ci-placeholder-public
+          SHELLBELL_VAPID_PRIVATE_KEY: ci-placeholder-private
+        run: docker compose -f deploy/docker-compose.yml config --quiet
+      - name: Docker build
+        run: docker build -f deploy/Dockerfile -t shellbell:ci .
+      - name: Diff and secret-shaped-content checks
+        shell: bash
+        run: |
+          git diff --check
+          if git grep -nE 'BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{36,}' -- . ':!Cargo.lock'; then
+            echo 'secret-shaped staged content found'
+            exit 1
+          fi

@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: shellbell:milestone-1
+    image: shellbell:milestone-2
     restart: unless-stopped
     environment:
       SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ${SHELLBELL_OWNER_BOOTSTRAP_TOKEN:?set in deploy/.env}
