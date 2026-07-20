@@ -38,7 +38,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target }}
+          key: release-ubuntu-22.04-${{ matrix.target }}
       - name: Verify release version
         run: bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
       - name: Build CLI
