@@ -61,4 +61,14 @@ SHELLBELL_PRIVATE_PATTERNS_FILE=/path/to/private-patterns.txt \
   bash scripts/audit-history.sh
 ```
 
-Do not commit the private patterns file or its output.
+Older public history can contain reviewed non-secret deployment references that the maintainer chooses not to rewrite after a release. Record those decisions in a separate local allowlist containing regular expressions that match the complete `revision:path:line:content` output line:
+
+```sh
+SHELLBELL_PRIVATE_PATTERNS_FILE=/path/to/private-patterns.txt \
+SHELLBELL_HISTORY_ALLOWLIST_FILE=/path/to/reviewed-history.txt \
+  bash scripts/audit-history.sh
+```
+
+A pass with an allowlist is reported as **passed with explicit reviewed exceptions**. It does not mean the underlying history was rewritten or that those strings were never public.
+
+Do not commit private pattern files, history allowlists, or audit output.

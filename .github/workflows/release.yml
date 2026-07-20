@@ -15,7 +15,7 @@ env:
 jobs:
   cli-archives:
     name: CLI archive (${{ matrix.platform }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +53,26 @@ jobs:
             --release \
             --target "${{ matrix.target }}" \
             --package shellbell-cli
+      - name: Validate GLIBC baseline
+        shell: bash
+        run: |
+          binary="target/${{ matrix.target }}/release/shellbell"
+          max_required="$({
+            readelf --version-info "$binary" |
+              grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' |
+              sort -Vu |
+              tail -n 1
+          } || true)"
+          [[ -n "$max_required" ]] || {
+            echo 'could not determine the release GLIBC requirement' >&2
+            exit 1
+          }
+          echo "Maximum required GLIBC symbol: $max_required"
+          newest="$(printf '%s\n' "$max_required" GLIBC_2.35 | sort -V | tail -n 1)"
+          [[ "$newest" == 'GLIBC_2.35' ]] || {
+            echo "release requires $max_required, newer than the GLIBC_2.35 compatibility baseline" >&2
+            exit 1
+          }
       - name: Smoke test native CLI
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: target/${{ matrix.target }}/release/shellbell --version

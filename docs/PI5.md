@@ -7,6 +7,7 @@ Shellbell supports 64-bit Raspberry Pi OS and other 64-bit Linux distributions o
 ```sh
 uname -s
 uname -m
+getconf GNU_LIBC_VERSION
 ```
 
 Expected architecture:
@@ -15,7 +16,7 @@ Expected architecture:
 aarch64
 ```
 
-A 32-bit operating system is not supported by the published ARM64 archive.
+Published ARM64 archives require GLIBC 2.35 or newer. A 32-bit operating system is not supported.
 
 ## 2. Install the verified release
 
@@ -31,6 +32,7 @@ For Zsh or Fish, replace `bash` with `zsh` or `fish`. The installer:
 - resolves the latest stable GitHub release;
 - downloads the Linux ARM64 archive and `SHA256SUMS`;
 - verifies the archive before extraction;
+- executes and validates the downloaded binary before replacing any existing installation;
 - installs `shellbell` to `~/.local/bin`;
 - installs only the shell integration you request.
 
@@ -46,12 +48,14 @@ Approve the displayed pairing code in the Shellbell web app.
 
 ## 4. Validate the installation
 
+From a repository checkout:
+
 ```sh
 shellbell doctor
 bash scripts/diagnose.sh --send --to all
 ```
 
-When using only the installed release rather than a repository checkout, run:
+When using only the installed release:
 
 ```sh
 shellbell doctor

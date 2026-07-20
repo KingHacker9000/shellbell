@@ -9,6 +9,8 @@ RELEASE_BASE_URL="${SHELLBELL_RELEASE_BASE_URL:-}"
 SHELLS=""
 ALL_SHELLS=0
 DRY_RUN=0
+TEMP_DIR=""
+TEMP_TARGET=""
 
 usage() {
   cat <<'USAGE'
@@ -19,11 +21,11 @@ Usage:
              [--all-shells] [--dry-run]
 
 Options:
-  --version VERSION  Install a specific version such as 0.1.0 or v0.1.0.
+  --version VERSION  Install a specific version such as 0.1.1 or v0.1.1.
   --prefix DIR       Install under DIR/bin (default: $HOME/.local).
   --shell SHELL      Install integration for bash, zsh, or fish. Repeatable.
   --all-shells       Install all supported shell integrations.
-  --dry-run          Resolve and verify the plan without changing the system.
+  --dry-run          Resolve the installation plan without changing the system.
   -h, --help         Show this help.
 
 Environment overrides:
@@ -31,6 +33,15 @@ Environment overrides:
   SHELLBELL_PREFIX
   SHELLBELL_REPOSITORY
 USAGE
+}
+
+cleanup() {
+  if [ -n "$TEMP_TARGET" ]; then
+    rm -f "$TEMP_TARGET"
+  fi
+  if [ -n "$TEMP_DIR" ]; then
+    rm -rf "$TEMP_DIR"
+  fi
 }
 
 fail() {
@@ -128,7 +139,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 TEMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TEMP_DIR"' EXIT HUP INT TERM
+trap cleanup EXIT HUP INT TERM
 
 if [ -n "$RELEASE_DIR" ]; then
   cp "$RELEASE_DIR/$ARCHIVE" "$TEMP_DIR/$ARCHIVE" \
@@ -166,12 +177,22 @@ tar -xzf "$TEMP_DIR/$ARCHIVE" -C "$TEMP_DIR" \
 BINARY="$TEMP_DIR/$PACKAGE/shellbell"
 [ -x "$BINARY" ] || fail "release archive does not contain an executable shellbell binary"
 
+VERSION_OUTPUT="$("$BINARY" --version 2>&1)" || {
+  printf '%s\n' "$VERSION_OUTPUT" >&2
+  fail "downloaded Shellbell binary cannot run on this system; the release may require a newer libc"
+}
+
+EXPECTED_VERSION="${VERSION%%-*}"
+[ "$VERSION_OUTPUT" = "shellbell $EXPECTED_VERSION" ] ||
+  fail "release version mismatch: expected shellbell $EXPECTED_VERSION, got $VERSION_OUTPUT"
+
 mkdir -p "$TARGET_DIR"
-TEMP_TARGET="$TARGET.tmp.$$"
+TEMP_TARGET="$TARGET_DIR/.shellbell.tmp.$$"
 install -m 0755 "$BINARY" "$TEMP_TARGET"
 mv -f "$TEMP_TARGET" "$TARGET"
+TEMP_TARGET=""
 
-"$TARGET" --version
+printf '%s\n' "$VERSION_OUTPUT"
 "$TARGET" __shutdown >/dev/null 2>&1 || true
 
 if [ "$ALL_SHELLS" -eq 1 ]; then
