@@ -20,7 +20,7 @@ check_matches() {
   local pattern="$2"
   local matches
 
-  matches="$(git grep -nEI "$pattern" -- "${paths[@]}" 2>/dev/null || true)"
+  matches="$(git grep -niE "$pattern" -- "${paths[@]}" 2>/dev/null || true)"
   if [[ -n "$matches" ]]; then
     printf '%s\n%s\n' "$title" "$matches"
     failed=1
@@ -36,7 +36,7 @@ check_matches \
   '(Amazon Lightsail|DigitalOcean|Linode|Vultr|Hetzner)'
 
 email_matches="$(
-  git grep -nEI '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' -- "${paths[@]}" 2>/dev/null \
+  git grep -niE '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' -- "${paths[@]}" 2>/dev/null \
     | grep -vEi '@example\.(com|org|net)' \
     || true
 )"
