@@ -18,6 +18,13 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 
 - Release automation now publishes the installer and includes it in `SHA256SUMS`.
 - CI validates installer upgrades, checksum rejection, operational scripts, and the documentation site.
+- Linux CLI archives are built on the GLIBC 2.35 baseline for Ubuntu 22.04, compatible ARM64 Linux, and Raspberry Pi 5 systems.
+
+### Fixed
+
+- The installer now executes and validates the downloaded binary before atomically replacing an existing installation.
+- CI rejects release binaries that require a newer GLIBC than the supported baseline.
+- History and site privacy checks no longer report their own detector definitions as findings.
 
 ## [0.1.0] - 2026-07-20
 
