@@ -60,7 +60,7 @@ done
 
 (
   cd "$backup"
-  sha256sum -c SHA256SUMS
+  sudo sha256sum -c SHA256SUMS
 ) || fail 'backup checksum verification failed'
 
 compose="$stack/compose.yaml"
@@ -71,7 +71,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 safety="$stack/backups/pre-restore-$stamp"
 
-"$script_dir/relay-backup.sh" \
+bash "$script_dir/relay-backup.sh" \
   --stack "$stack" \
   --service "$service" \
   --output "$safety"
