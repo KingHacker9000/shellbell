@@ -41,6 +41,42 @@ SHELLBELL_VERSION="$version" \
 SHELLBELL_PREFIX="$prefix" \
   sh "$root/install.sh"
 
+before_hash="$(sha256sum "$prefix/bin/shellbell" | awk '{print $1}')"
+
+bad_version='0.1.0-test.2'
+bad_release="$tmp/bad-release"
+bad_binary="$tmp/bad-shellbell"
+mkdir -p "$bad_release"
+cat > "$bad_binary" <<'BAD'
+#!/bin/sh
+echo 'simulated incompatible executable' >&2
+exit 1
+BAD
+chmod 0755 "$bad_binary"
+
+bash "$root/scripts/package-release.sh" \
+  "$bad_binary" \
+  linux-x86_64 \
+  "$bad_version" \
+  "$bad_release"
+cat "$bad_release"/*.sha256 > "$bad_release/SHA256SUMS"
+
+if SHELLBELL_RELEASE_DIR="$bad_release" \
+  SHELLBELL_VERSION="$bad_version" \
+  SHELLBELL_PREFIX="$prefix" \
+  sh "$root/install.sh" >/dev/null 2>&1
+then
+  echo 'installer accepted a binary that cannot execute' >&2
+  exit 1
+fi
+
+after_hash="$(sha256sum "$prefix/bin/shellbell" | awk '{print $1}')"
+[[ "$before_hash" == "$after_hash" ]] || {
+  echo 'installer replaced the existing binary before compatibility validation' >&2
+  exit 1
+}
+"$prefix/bin/shellbell" --version
+
 corrupt="$tmp/corrupt"
 cp -a "$release_dir" "$corrupt"
 printf 'corruption\n' >> "$corrupt/shellbell-${version}-linux-x86_64.tar.gz"
