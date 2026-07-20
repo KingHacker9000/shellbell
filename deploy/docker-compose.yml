@@ -1,17 +1,14 @@
 services:
   shellbell:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-    image: shellbell:0.1.0
+    image: ghcr.io/kinghacker9000/shellbell:v0.1.1
     restart: unless-stopped
     environment:
-      SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ${SHELLBELL_OWNER_BOOTSTRAP_TOKEN:?set in deploy/.env}
-      SHELLBELL_VAPID_PUBLIC_KEY: ${SHELLBELL_VAPID_PUBLIC_KEY:?set in deploy/.env}
-      SHELLBELL_VAPID_PRIVATE_KEY: ${SHELLBELL_VAPID_PRIVATE_KEY:?set in deploy/.env}
+      SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ${SHELLBELL_OWNER_BOOTSTRAP_TOKEN:?set in .env}
+      SHELLBELL_VAPID_PUBLIC_KEY: ${SHELLBELL_VAPID_PUBLIC_KEY:?set in .env}
+      SHELLBELL_VAPID_PRIVATE_KEY: ${SHELLBELL_VAPID_PRIVATE_KEY:?set in .env}
       SHELLBELL_VAPID_SUBJECT: ${SHELLBELL_VAPID_SUBJECT:-mailto:owner@localhost}
       SHELLBELL_HISTORY_RETENTION_DAYS: ${SHELLBELL_HISTORY_RETENTION_DAYS:-14}
-      SHELLBELL_INSECURE_LOCAL_HTTP: ${SHELLBELL_INSECURE_LOCAL_HTTP:-true}
+      SHELLBELL_INSECURE_LOCAL_HTTP: ${SHELLBELL_INSECURE_LOCAL_HTTP:-false}
       RUST_LOG: ${RUST_LOG:-shellbell_relay=info,tower_http=info}
     ports:
       - "127.0.0.1:${SHELLBELL_PORT:-8080}:8080"
