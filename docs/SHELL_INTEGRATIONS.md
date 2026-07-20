@@ -33,6 +33,8 @@ The Bash hook applies only to interactive shells. It snapshots the existing `DEB
 
 The Shellbell precmd emits `prompt_ready` and opens the next preexec gate. Existing prompt functions/themes and Starship-style `PROMPT_COMMAND` remain intact. The state machine also rejects duplicate start/prompt events defensively.
 
+`shellbell on` and `shellbell once` atomically arm the local session and begin a fresh activity boundary in the daemon. This allows a following command in the same pasted multiline submission to be measured even when Bash exposes only one initial `DEBUG` boundary. The eventual prompt-ready event closes the interval. No command text is inspected or transmitted, and Shellbell does not replace the user's command.
+
 ## Zsh
 
 The Zsh hook uses `autoload -Uz add-zsh-hook` and registers named functions in native `preexec`, `precmd`, and `zshexit` arrays. It removes only duplicate registrations of those exact Shellbell function names before adding them once. Existing Oh My Zsh, Starship, theme, and user hook-array entries remain untouched. Arguments passed by `preexec` are ignored.

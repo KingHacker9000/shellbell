@@ -258,12 +258,13 @@ async fn handle_request(request: IpcRequest, context: &DaemonContext) -> Result<
             idle_for_ms,
             targets,
         } => {
-            require_session(engine.arm(
+            require_session(engine.arm_and_start(
                 session_id,
                 Mode::Persistent,
                 minimum_active_ms,
                 idle_for_ms,
                 targets,
+                now_mono,
                 now_wall,
             ))?;
             IpcResult::Acknowledged
@@ -274,12 +275,13 @@ async fn handle_request(request: IpcRequest, context: &DaemonContext) -> Result<
             idle_for_ms,
             targets,
         } => {
-            require_session(engine.arm(
+            require_session(engine.arm_and_start(
                 session_id,
                 Mode::Once,
                 minimum_active_ms,
                 idle_for_ms,
                 targets,
+                now_mono,
                 now_wall,
             ))?;
             IpcResult::Acknowledged
