@@ -172,6 +172,7 @@ install -m 0755 "$BINARY" "$TEMP_TARGET"
 mv -f "$TEMP_TARGET" "$TARGET"
 
 "$TARGET" --version
+"$TARGET" __shutdown >/dev/null 2>&1 || true
 
 if [ "$ALL_SHELLS" -eq 1 ]; then
   "$TARGET" install --all-shells
