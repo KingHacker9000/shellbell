@@ -83,9 +83,25 @@ exit 0
     }
 
     fn run_shell(&self, command: &str, extra: &[(&str, &Path)]) {
+        assert!(
+            command_exists("script"),
+            "util-linux `script` is required for interactive shell tests"
+        );
+
         let mut child = Command::new("timeout");
         child
-            .args(["-k", "1s", "5s", "sh", "-c", command])
+            .args([
+                "-k",
+                "1s",
+                "10s",
+                "script",
+                "-q",
+                "-e",
+                "-f",
+                "-c",
+                command,
+                "/dev/null",
+            ])
             .env("HOME", &self.home)
             .env("XDG_CONFIG_HOME", self.home.join(".config"))
             .env("PATH", self.path())

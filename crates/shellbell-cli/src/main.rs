@@ -402,6 +402,9 @@ async fn arm(command: ArmCommand, once: bool, paths: &LocalPaths) -> Result<()> 
         humantime::format_duration(minimum_active),
         humantime::format_duration(idle_for)
     );
+    println!(
+        "Monitoring is active now; a following command in this same submission or from the next prompt will be measured."
+    );
     Ok(())
 }
 

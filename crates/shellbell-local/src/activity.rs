@@ -261,6 +261,31 @@ impl ActivityEngine {
         true
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn arm_and_start(
+        &mut self,
+        id: Uuid,
+        mode: Mode,
+        minimum_active_ms: u64,
+        idle_for_ms: u64,
+        targets: Vec<String>,
+        now_mono_ms: u64,
+        now_wall_ms: i64,
+    ) -> bool {
+        if !self.arm(
+            id,
+            mode,
+            minimum_active_ms,
+            idle_for_ms,
+            targets,
+            now_wall_ms,
+        ) {
+            return false;
+        }
+
+        self.command_start(id, now_mono_ms, now_wall_ms)
+    }
+
     pub fn disarm(&mut self, id: Uuid, now_wall_ms: i64) -> bool {
         let Some(session) = self.sessions.get_mut(&id) else {
             return false;
@@ -460,6 +485,91 @@ mod tests {
     fn command(engine: &mut ActivityEngine, id: Uuid, start: u64, end: u64) {
         assert!(engine.command_start(id, start, start as i64));
         assert!(engine.prompt_ready(id, end, end as i64));
+    }
+
+    #[test]
+    fn arm_and_start_tracks_work_in_the_same_submission() {
+        let id = Uuid::new_v4();
+        let mut engine = ActivityEngine::default();
+
+        engine.session_open(
+            id,
+            123,
+            ShellType::Bash,
+            Some("/dev/pts/1".into()),
+            5_000,
+            5_000,
+            vec!["pc".into()],
+            1_000,
+        );
+
+        assert!(engine.arm_and_start(
+            id,
+            Mode::Once,
+            5_000,
+            5_000,
+            vec!["pc".into()],
+            1_000,
+            1_000,
+        ));
+
+        let active = engine.get(id).unwrap();
+        assert_eq!(active.mode, Mode::Once);
+        assert_eq!(active.state, SessionState::Active);
+        assert_eq!(active.command_started_mono_ms, Some(1_000));
+
+        assert!(engine.prompt_ready(id, 8_000, 8_000));
+
+        let actions = engine.tick(13_000, 13_000);
+
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].active_duration_ms, Some(7_000));
+        assert_eq!(engine.get(id).unwrap().mode, Mode::Off);
+        assert_eq!(engine.get(id).unwrap().state, SessionState::Disarmed);
+    }
+
+    #[test]
+    fn short_initial_arm_boundary_does_not_consume_once_mode() {
+        let id = Uuid::new_v4();
+        let mut engine = ActivityEngine::default();
+
+        engine.session_open(
+            id,
+            123,
+            ShellType::Bash,
+            None,
+            5_000,
+            5_000,
+            vec!["pc".into()],
+            1_000,
+        );
+
+        assert!(engine.arm_and_start(
+            id,
+            Mode::Once,
+            5_000,
+            5_000,
+            vec!["pc".into()],
+            1_000,
+            1_000,
+        ));
+
+        assert!(engine.prompt_ready(id, 1_050, 1_050));
+        assert!(engine.tick(6_050, 6_050).is_empty());
+
+        let rearmed = engine.get(id).unwrap();
+        assert_eq!(rearmed.mode, Mode::Once);
+        assert_eq!(rearmed.state, SessionState::Armed);
+
+        assert!(engine.command_start(id, 7_000, 7_000));
+        assert!(engine.prompt_ready(id, 13_000, 13_000));
+
+        let actions = engine.tick(18_000, 18_000);
+
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].active_duration_ms, Some(6_000));
+        assert_eq!(engine.get(id).unwrap().mode, Mode::Off);
+        assert_eq!(engine.get(id).unwrap().state, SessionState::Disarmed);
     }
 
     #[test]

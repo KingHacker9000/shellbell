@@ -14,10 +14,19 @@ Owner bootstrap/session, source pairing and revocation, manual CLI rings, receiv
 - Strict user TOML separate from existing paired source credentials.
 - Deterministic state/store/IPC tests, isolated Bash/Zsh/Fish harnesses, WSL/service tests, Linux CI, x86-64 tests, ARM64 compile check, PWA/Docker preservation, and complete operational docs.
 
+## Milestone 3 — private production deployment (acceptance complete)
+
+- Private relay and PWA deployed at `https://shellbell.example.com` on a Linux VPS.
+- Docker Compose stack under `/opt/stacks/shellbell`, localhost-only backend on `127.0.0.1:8080`, and Caddy as the only public ingress.
+- Persistent SQLite data, external mode-`0600` secrets, immutable commit-tagged images, bounded resources/logs, and health checks.
+- Owner bootstrap, browser receiver registration, WSL source pairing, manual Push delivery, durable retry recovery, and automatic Bash once-mode delivery verified end to end.
+- Browser and operating-system notification controls verified as separate delivery layers.
+- Production acceptance and troubleshooting are documented in `docs/PRODUCTION_ACCEPTANCE.md`.
+
 ## Later milestones
 
 - Windows PowerShell/CMD and macOS support.
 - Packaging/upgrades, backup tooling, native mobile applications, and private infrastructure operations.
 - Carefully privacy-reviewed delivery observability beyond current local queue status.
 
-Shellbell remains an attention notifier, not a job manager. Job/process tracking, output-silence detection, prompt scraping, outcome inference, and application-specific monitoring are outside Milestone 2.
+Shellbell remains an attention notifier, not a job manager. Job/process tracking, output-silence detection, prompt scraping, outcome inference, and application-specific monitoring are outside the current milestones.

@@ -10,7 +10,7 @@ Build and pair the source once:
 
 ```sh
 cargo build --release -p shellbell-cli
-target/release/shellbell pair https://shellbell.example
+target/release/shellbell pair https://shellbell.example.com
 ```
 
 Install all detected supported shells and start the per-user daemon:
@@ -35,7 +35,7 @@ shellbell once --after 30s --idle 10s
 shellbell once --to all
 
 shellbell status
-shellbell name "FlexAvatar pilot"
+shellbell name "Long training run"
 shellbell ring "Deployment complete"
 shellbell off
 ```
@@ -54,6 +54,7 @@ Important boundaries:
 - An interactive program that retains foreground control has not returned to the prompt, so no automatic ring occurs. It may call `shellbell ring "Task complete"` itself.
 - Idle means “the prompt returned and no new command began.” Shellbell does not intercept keystrokes, so a ring can occur while a user is slowly typing but has not pressed Enter.
 - Each tmux pane or nested interactive shell gets its own random `SHELLBELL_SESSION_ID` and must be armed independently.
+- Arming atomically starts a local activity boundary, so a following command in the same pasted block is measured without inspecting command text. An immediate short boundary that does not qualify settles without consuming `once` mode.
 
 ## Local architecture
 
@@ -145,6 +146,8 @@ docker build -f deploy/Dockerfile -t shellbell:milestone-2 .
 - [Shell integrations](docs/SHELL_INTEGRATIONS.md)
 - [Threat model and privacy](docs/SECURITY.md)
 - [Local development and manual verification](docs/LOCAL_DEVELOPMENT.md)
+- [Provider-neutral VPS deployment](docs/DEPLOY_VPS.md)
+- [Production acceptance](docs/PRODUCTION_ACCEPTANCE.md)
 - [Milestones](docs/MILESTONES.md)
 
 ## Known limitations
