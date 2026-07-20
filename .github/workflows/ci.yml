@@ -2,7 +2,7 @@ name: Linux CI
 
 on:
   push:
-    branches: [main, "milestone/**", "release/**"]
+    branches: [main, "milestone/**", "release/**", "fix/**"]
   pull_request:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   rust-linux-x86_64:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install shell test dependencies
@@ -30,6 +30,16 @@ jobs:
         shell: bash
         run: |
           cargo build --locked --release --package shellbell-cli
+          max_required="$({
+            readelf --version-info target/release/shellbell |
+              grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' |
+              sort -Vu |
+              tail -n 1
+          } || true)"
+          [[ -n "$max_required" ]]
+          echo "Maximum required GLIBC symbol: $max_required"
+          newest="$(printf '%s\n' "$max_required" GLIBC_2.35 | sort -V | tail -n 1)"
+          [[ "$newest" == 'GLIBC_2.35' ]]
           version="$(
             awk '
               /^\[workspace\.package\]$/ { in_package = 1; next }
@@ -70,7 +80,7 @@ jobs:
       - run: npm run validate:manifest
 
   linux-arm64-check:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install ARM64 compiler
@@ -80,11 +90,28 @@ jobs:
           toolchain: "1.97"
           targets: aarch64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
-      - name: ARM64 client compile check
+      - name: ARM64 release build and GLIBC baseline
+        shell: bash
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-        run: cargo check --locked --target aarch64-unknown-linux-gnu -p shellbell-cli -p shellbell-local -p shellbell-protocol
+        run: |
+          cargo build \
+            --locked \
+            --release \
+            --target aarch64-unknown-linux-gnu \
+            --package shellbell-cli
+          binary='target/aarch64-unknown-linux-gnu/release/shellbell'
+          max_required="$({
+            readelf --version-info "$binary" |
+              grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' |
+              sort -Vu |
+              tail -n 1
+          } || true)"
+          [[ -n "$max_required" ]]
+          echo "Maximum required GLIBC symbol: $max_required"
+          newest="$(printf '%s\n' "$max_required" GLIBC_2.35 | sort -V | tail -n 1)"
+          [[ "$newest" == 'GLIBC_2.35' ]]
 
   docker-and-staged-content:
     runs-on: ubuntu-24.04
