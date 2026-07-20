@@ -1,6 +1,6 @@
 # HTTP protocol
 
-Milestone 2 keeps the Milestone 1 HTTP protocol wire-compatible. Shell activity metadata is local. Automatic and manual delivery use the existing idempotent request:
+Shell activity metadata stays local. Automatic and manual delivery use the same idempotent request:
 
 ```json
 {"event_id":"uuid","message":"Shell is ready","target_tags":["phone"]}

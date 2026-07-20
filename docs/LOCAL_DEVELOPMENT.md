@@ -1,6 +1,6 @@
 # Local development and verification
 
-Prerequisites are Rust 1.97, Node.js 24/npm, Docker Compose v2, and Bash. Install Zsh and Fish for the complete shell suite. All installer tests use temporary homes; never point `--home` at the developer home during automated experiments.
+Prerequisites are Rust 1.97, Node.js 24/npm, Docker Compose v2, and Bash. Install Zsh, Fish, and util-linux for the complete shell suite. All installer tests use temporary homes; never point `--home` at the developer home during automated experiments.
 
 ## Full native validation
 
@@ -34,7 +34,7 @@ SHELLBELL_OWNER_BOOTSTRAP_TOKEN=placeholder-owner-token-at-least-32-bytes \
 SHELLBELL_VAPID_PUBLIC_KEY=placeholder-public \
 SHELLBELL_VAPID_PRIVATE_KEY=placeholder-private \
 docker compose -f deploy/docker-compose.yml config --quiet
-docker build -f deploy/Dockerfile -t shellbell:milestone-2 .
+docker build -f deploy/Dockerfile -t shellbell:dev .
 ```
 
 For relay/PWA development, configure VAPID values, run `cargo run -p shellbell-relay`, and run `npm --prefix pwa run dev`. Vite proxies `/api` and `/health` to port 8080. Pairing credentials stay in the client's existing config JSON.
@@ -52,7 +52,7 @@ The shell integration test executable builds a fake local hook endpoint that log
 
 ## Exact manual verification
 
-These checks assume the source is paired and a receiver is active. In every case, inspect `shellbell status` before/after and expect calm wording, never success/failure wording.
+These checks assume the source is paired and a receiver is active. In every case, inspect `shellbell status` before and after and expect calm wording, never success/failure wording.
 
 ### 1. Current WSL Bash
 
@@ -66,7 +66,7 @@ sleep 15
 # Wait 5 seconds at the returned prompt: exactly one ring.
 ```
 
-Burst accumulation/cancel test:
+Burst accumulation and cancellation test:
 
 ```sh
 shellbell on --after 10s --idle 10s
@@ -99,7 +99,7 @@ sleep 15
 shellbell status
 ```
 
-Confirm Oh My Zsh/Starship prompt appearance and existing hooks are unchanged.
+Confirm Oh My Zsh or Starship prompt appearance and existing hooks are unchanged.
 
 ### 4. Fish
 
@@ -128,20 +128,20 @@ shellbell once --after 10s --idle 5s
 sleep 15
 ```
 
-### 6. Remote DGP Linux shell
+### 6. Remote Linux shell
 
-After copying/building the client on the remote host and pairing that host if it has no source credential:
+After copying or building the client on a remote host and pairing it when needed:
 
 ```sh
-ssh user@dgp-host
+ssh user@example-host
 shellbell install --shell bash
 exec bash
-shellbell name "DGP remote"
+shellbell name "Remote shell"
 shellbell once --after 10s --idle 5s --to phone
 sleep 15
 ```
 
-Disconnect/reconnect and verify `shellbell doctor`; no command content should appear at the relay.
+Disconnect and reconnect, then verify `shellbell doctor`. No command content should appear at the relay.
 
 ### 7. tmux panes
 
@@ -183,7 +183,7 @@ systemctl --user restart shellbell.service
 
 ### 9. no-systemd fallback environment
 
-In a container/WSL distro without a user manager:
+In a container or WSL distribution without a user manager:
 
 ```sh
 ! systemctl --user show-environment
@@ -213,7 +213,7 @@ Interactive-program limitation and manual escape hatch:
 shellbell once --after 10s --idle 5s
 python3
 # Leave the REPL open: no automatic ring because the shell prompt has not returned.
-# From an integrated child/application when appropriate:
+# From an integrated child or application when appropriate:
 shellbell ring "Task complete"
 ```
 

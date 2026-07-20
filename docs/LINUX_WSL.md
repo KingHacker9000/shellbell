@@ -1,6 +1,6 @@
 # Linux and WSL installation
 
-Milestone 2 supports Linux x86-64, Linux ARM64 (including Raspberry Pi), and WSL 2 distributions with Bash, Zsh, and Fish. It does not support native Windows PowerShell/CMD or macOS.
+Shellbell supports Linux x86-64, Linux ARM64 (including Raspberry Pi), and WSL 2 distributions with Bash, Zsh, and Fish. It does not currently support native Windows PowerShell/CMD or macOS.
 
 ## Install
 

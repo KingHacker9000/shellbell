@@ -75,11 +75,13 @@ jobs:
         run: docker compose -f deploy/docker-compose.yml config --quiet
       - name: Docker build
         run: docker build -f deploy/Dockerfile -t shellbell:ci .
+      - name: Public-content privacy check
+        run: bash scripts/check-public-content.sh
       - name: Diff and secret-shaped-content checks
         shell: bash
         run: |
           git diff --check
           if git grep -nE 'BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{36,}' -- . ':!Cargo.lock'; then
-            echo 'secret-shaped staged content found'
+            echo 'secret-shaped content found'
             exit 1
           fi

@@ -6,7 +6,7 @@ Shellbell protects the owner session, source send capability, browser Push subsc
 
 Shell hooks observe only these boundaries: shell opened, foreground command began, prompt became ready, and shell exited. They do not inspect hook arguments carrying command text. There is no command/output/status/environment/history/process-list schema in IPC or durable state.
 
-Local-only session data can include UUID, shell PID/type, TTY, arm mode/state, burst UUID, accumulated duration, deadline, notified flag, label, receiver targets, and last-seen time. The daemon uses shell PID only for stale cleanup. Relay RingRequest remains event UUID, optional deliberate/calm message, and target tags. Internal shell metadata and duration are not transmitted.
+Local-only session data can include UUID, shell PID/type, TTY, arm mode/state, burst UUID, accumulated duration, deadline, notified flag, label, receiver targets, and last-seen time. The daemon uses shell PID only for stale cleanup. Relay `RingRequest` remains event UUID, optional deliberate/calm message, and target tags. Internal shell metadata and duration are not transmitted.
 
 ## Local controls
 
@@ -35,8 +35,8 @@ Transient network, `429`, and `5xx` failures use exponential delay from five sec
 
 ## Residual risks and limitations
 
-Shell startup files execute code and remain part of the user's trust boundary. A malicious same-user process can access same-user files/socket and use the source send capability; Unix UID separation is not a sandbox between processes of one account. A ring may occur while text is being typed because Milestone 2 deliberately avoids Readline/ZLE/Fish-editor interception. Background processes and interactive applications holding foreground control are not completion signals. The relay in-memory rate limiter resets on relay restart.
+Shell startup files execute code and remain part of the user's trust boundary. A malicious same-user process can access same-user files/socket and use the source send capability; Unix UID separation is not a sandbox between processes of one account. A ring may occur while text is being typed because Shellbell deliberately avoids Readline, ZLE, and Fish editor interception. Background processes and interactive applications holding foreground control are not completion signals. The relay in-memory rate limiter resets on relay restart.
 
 ## Pre-commit review
 
-Inspect the full/staged diff and untracked files; run `git diff --check`; reject private-key headers and GitHub-token-shaped values; verify no `.env`, SQLite, socket, PID, generated hook, or package-extraction artifact is staged; and search for shell command-content capture such as `BASH_COMMAND`, hook argument serialization, output, exit status, or environment enumeration. Placeholder strings in tests are not credentials.
+Inspect the full and staged diff plus untracked files; run `git diff --check`; reject private-key headers and token-shaped values; verify no `.env`, SQLite, socket, PID, generated hook, or package-extraction artifact is staged; and search for shell command-content capture such as `BASH_COMMAND`, hook argument serialization, output, exit status, or environment enumeration. Placeholder strings in tests are not credentials.

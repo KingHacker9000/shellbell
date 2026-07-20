@@ -1,6 +1,6 @@
 # Architecture
 
-Milestone 2 adds a privacy-bounded per-user activity monitor in front of the unchanged Milestone 1 relay path.
+Shellbell combines a privacy-bounded per-user activity monitor with a private notification relay and browser receivers.
 
 ## Components
 
@@ -9,7 +9,7 @@ Milestone 2 adds a privacy-bounded per-user activity monitor in front of the unc
 - `shellbell-local` owns strict TOML settings, typed local IPC, the activity state machine, durable local SQLite state/queue, UID-checked daemon, managed shell hooks, systemd unit generation, and WSL detection.
 - `shellbell-cli` owns pairing and all public user commands. The same executable exposes hidden `__daemon`, `__hook`, and `__session-id` modes; no second binary is installed.
 - `shellbell-relay` owns Axum routes, owner/source authentication, relay SQLite, receiver routing, idempotent ring acceptance, Web Push, and PWA delivery.
-- `pwa` remains the React/TypeScript/Vite owner interface.
+- `pwa` is the React/TypeScript/Vite owner interface.
 
 ## Local data flow
 
@@ -55,4 +55,4 @@ Sessions are removed when their shell PID no longer exists or their last local b
 
 ## Relay trust path
 
-Owner cookies, CSRF, send-only source credentials, transactional pairing, tagged receiver selection, relay idempotency, and PWA behavior remain as documented for Milestone 1. The relay RingRequest was not extended: automatic rings use only event ID, calm message, and target tags. Active duration is intentionally not transmitted.
+Owner cookies, CSRF, send-only source credentials, transactional pairing, tagged receiver selection, relay idempotency, and PWA behavior share one privacy boundary. The relay `RingRequest` contains only an event ID, calm notification message, and target tags. Active duration and shell metadata are intentionally not transmitted.
