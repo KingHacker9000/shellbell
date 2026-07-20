@@ -26,17 +26,29 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Rust and shell integration tests
         run: cargo test --workspace --all-targets --locked
-      - name: Release archive smoke test
+      - name: Release archive and installer acceptance
         shell: bash
         run: |
           cargo build --locked --release --package shellbell-cli
+          version="$(
+            awk '
+              /^\[workspace\.package\]$/ { in_package = 1; next }
+              /^\[/ { in_package = 0 }
+              in_package && /^version = / {
+                gsub(/^[^"]*"|".*$/, "")
+                print
+                exit
+              }
+            ' Cargo.toml
+          )"
           bash scripts/package-release.sh \
             target/release/shellbell \
             linux-x86_64 \
-            0.1.0-rc.1 \
+            "$version" \
             /tmp/shellbell-release
           (cd /tmp/shellbell-release && sha256sum -c *.sha256)
-          tar -tzf /tmp/shellbell-release/shellbell-0.1.0-rc.1-linux-x86_64.tar.gz
+          tar -tzf "/tmp/shellbell-release/shellbell-${version}-linux-x86_64.tar.gz"
+          bash scripts/test-installer.sh target/release/shellbell
 
   pwa:
     runs-on: ubuntu-24.04
@@ -86,6 +98,10 @@ jobs:
         run: docker compose -f deploy/docker-compose.yml config --quiet
       - name: Docker build
         run: docker build -f deploy/Dockerfile -t shellbell:ci .
+      - name: Operational script syntax
+        run: bash -n install.sh scripts/*.sh
+      - name: Documentation site validation
+        run: bash scripts/check-site.sh
       - name: Public-content privacy check
         run: bash scripts/check-public-content.sh
       - name: Diff and secret-shaped-content checks
