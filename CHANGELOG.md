@@ -25,6 +25,7 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 - The installer now executes and validates the downloaded binary before atomically replacing an existing installation.
 - CI rejects release binaries that require a newer GLIBC than the supported baseline.
 - History and site privacy checks no longer report their own detector definitions as findings.
+- Rust build caches are isolated by Ubuntu baseline so Ubuntu 24.04 artifacts cannot contaminate portable Ubuntu 22.04 CI or release builds.
 
 ## [0.1.0] - 2026-07-20
 
