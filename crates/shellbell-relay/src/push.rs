@@ -3,9 +3,11 @@ use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use web_push::{
-    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
-    WebPushError, WebPushMessageBuilder,
+    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, Urgency, VapidSignatureBuilder,
+    WebPushClient, WebPushError, WebPushMessageBuilder,
 };
+
+const PUSH_TTL_SECONDS: u32 = 120;
 
 #[derive(Clone, Debug)]
 pub struct PushSubscription {
@@ -65,6 +67,8 @@ impl PushDelivery for VapidPushDelivery {
         };
         let mut builder = WebPushMessageBuilder::new(&info);
         builder.set_payload(ContentEncoding::Aes128Gcm, payload);
+        builder.set_ttl(PUSH_TTL_SECONDS);
+        builder.set_urgency(Urgency::High);
         builder.set_vapid_signature(signature);
         let message = match builder.build() {
             Ok(message) => message,
