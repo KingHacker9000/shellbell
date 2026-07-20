@@ -12,7 +12,7 @@ jobs:
   rust-linux-x86_64:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install shell test dependencies
         run: sudo apt-get update && sudo apt-get install -y zsh fish util-linux
       - uses: dtolnay/rust-toolchain@stable
@@ -68,8 +68,8 @@ jobs:
       run:
         working-directory: pwa
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -84,7 +84,7 @@ jobs:
   linux-arm64-check:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install ARM64 compiler
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
       - uses: dtolnay/rust-toolchain@stable
@@ -120,7 +120,7 @@ jobs:
   docker-and-staged-content:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Compose validation
         env:
           SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ci-placeholder-owner-token-at-least-32-bytes
