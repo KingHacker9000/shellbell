@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Guided setup for Shellbell, a private self-hosted terminal attention notifier.">
+  <title>Shellbell setup</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <nav>
+      <a class="brand" href="#top">Shellbell</a>
+      <a href="https://github.com/KingHacker9000/shellbell">GitHub</a>
+    </nav>
+    <div class="hero-copy" id="top">
+      <p class="eyebrow">Private terminal notifications</p>
+      <h1>Leave the terminal.<br>Shellbell calls you back.</h1>
+      <p class="lede">A guided, copy-paste setup for Linux, WSL 2, and Raspberry Pi 5. No command text or terminal output is collected.</p>
+      <a class="primary" href="#setup">Start setup</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" id="setup">
+      <div class="section-heading">
+        <p class="eyebrow">Guided setup</p>
+        <h2>Four steps to your first ring</h2>
+      </div>
+
+      <div class="controls">
+        <label>Platform
+          <select id="platform">
+            <option value="linux">Linux x86-64</option>
+            <option value="wsl">WSL 2</option>
+            <option value="pi">Raspberry Pi 5</option>
+          </select>
+        </label>
+        <label>Shell
+          <select id="shell">
+            <option value="bash">Bash</option>
+            <option value="zsh">Zsh</option>
+            <option value="fish">Fish</option>
+          </select>
+        </label>
+        <label>Relay URL
+          <input id="relay-url" type="url" value="https://shellbell.example.com" spellcheck="false">
+        </label>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <div><span>1</span><h3>Install the verified CLI</h3></div>
+          <p>The installer detects your architecture, downloads the latest stable archive, verifies SHA256SUMS, and installs only your selected shell integration.</p>
+          <pre><code id="install-command"></code><button data-copy="install-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>2</span><h3>Pair this machine</h3></div>
+          <p>Run the command, then approve the pairing code in your private Shellbell web app.</p>
+          <pre><code id="pair-command"></code><button data-copy="pair-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>3</span><h3>Register receivers</h3></div>
+          <p>Open the relay URL, install the PWA, allow notifications, and tag each receiver as phone, pc, mobile, or desktop.</p>
+          <pre><code id="open-command"></code><button data-copy="open-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>4</span><h3>Validate end to end</h3></div>
+          <p>Doctor checks the local daemon, source credentials, relay connectivity, durable queue, and shell integration. The ring verifies delivery.</p>
+          <pre><code id="test-command"></code><button data-copy="test-command">Copy</button></pre>
+        </li>
+      </ol>
+    </section>
+
+    <section class="cards">
+      <article>
+        <p class="eyebrow">Raspberry Pi 5</p>
+        <h2>ARM64-ready</h2>
+        <p>The same installer selects the signed Linux ARM64 release. Use a 64-bit operating system and confirm uname -m reports aarch64.</p>
+        <a href="https://github.com/KingHacker9000/shellbell/blob/main/docs/PI5.md">Pi 5 guide →</a>
+      </article>
+      <article>
+        <p class="eyebrow">Self-hosting</p>
+        <h2>Own the relay</h2>
+        <p>Run the relay behind HTTPS, bind it to loopback, and preserve its SQLite data. Shellbell remains single-owner and private by design.</p>
+        <a href="https://github.com/KingHacker9000/shellbell/blob/main/docs/DEPLOY_VPS.md">Deployment guide →</a>
+      </article>
+      <article>
+        <p class="eyebrow">Operations</p>
+        <h2>Recover safely</h2>
+        <p>Checksum-backed backup and restore helpers preserve Compose configuration, secrets, SQLite state, pairings, and receivers.</p>
+        <a href="https://github.com/KingHacker9000/shellbell/blob/main/docs/BACKUP_RESTORE.md">Backup guide →</a>
+      </article>
+    </section>
+
+    <section class="privacy">
+      <p class="eyebrow">Privacy boundary</p>
+      <h2>Shell activity, not shell contents.</h2>
+      <p>Shellbell does not collect commands, output, exit codes, environment variables, working directories, process lists, or inferred success and failure.</p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Shellbell · MIT licensed</span>
+    <a href="https://github.com/KingHacker9000/shellbell/blob/main/docs/DIAGNOSTICS.md">Diagnostics</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

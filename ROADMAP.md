@@ -1,25 +1,32 @@
 # Roadmap
 
-Shellbell is approaching its first public release. The immediate goal is a small, reliable, privacy-preserving terminal notifier that is easy to self-host.
+Shellbell `v0.1.0` is released and running in production. The project remains focused on a small, reliable, privacy-preserving terminal notifier that is easy to self-host.
 
-## v0.1.0
+## Completed: v0.1.0
 
-- Finish the open-source readiness audit.
-- Validate clean installation on supported Linux and WSL environments.
-- Publish Linux x86-64 and ARM64 release archives with checksums.
-- Publish an immutable container image.
-- Document upgrade and rollback steps.
-- Test manual rings, automatic monitoring, retry recovery, and browser notifications end to end.
+- Open-source readiness and public-content privacy checks.
+- Linux x86-64 and ARM64 release archives with checksums.
+- Multi-architecture immutable container publishing.
+- Upgrade and rollback documentation.
+- End-to-end manual and automatic notification validation.
 
-## After v0.1.0
+## Milestone 5: onboarding and operations
+
+- Checksum-verifying installer and upgrade path for Linux x86-64 and ARM64.
+- Guided static setup site with runnable Linux, WSL, and Raspberry Pi 5 commands.
+- Raspberry Pi 5 installation and acceptance guide.
+- Consistent relay backup helper with checksum manifests.
+- Restore helper with a pre-restore safety snapshot and automatic rollback.
+- Safe source diagnostics and delivery-test workflow.
+- Repeatable full-history privacy-audit helper with local private-pattern support.
+
+## Later
 
 Likely improvements, based on real usage:
 
-- Easier installation and upgrade packages.
-- A small documentation site with guided setup and runnable examples.
-- Backup and restore helpers for self-hosted relays.
-- Better receiver and delivery diagnostics without exposing Push secrets.
 - Native PowerShell, Windows, and macOS support.
+- Package-manager distribution where maintenance cost is justified.
+- Richer receiver and delivery diagnostics that preserve Push-secret boundaries.
 - A native mobile receiver only if browser Push reliability proves insufficient.
 
 ## Non-goals

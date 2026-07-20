@@ -6,7 +6,7 @@ It is a private, self-hosted tool for people who leave long-running commands in 
 
 Shellbell watches shell activity boundaries, not command contents. It does **not** collect command text, output, exit codes, environment variables, working directories, process lists, or inferred success and failure.
 
-> The current release line is `0.1.0`. Prereleases use tags such as `v0.1.0-rc.1`.
+> The current stable release is `v0.1.0`.
 
 ## What it does
 
@@ -17,19 +17,35 @@ Shellbell watches shell activity boundaries, not command contents. It does **not
 - Keeps a durable local retry queue when the relay is temporarily unavailable.
 - Runs on Linux x86-64, Linux ARM64, Raspberry Pi OS, and WSL 2.
 
-## Quick start from source
+## Quick start
+
+The guided setup site is available at:
+
+```text
+https://kinghacker9000.github.io/shellbell/
+```
 
 ### 1. Self-host the relay
 
 Deploy the relay and PWA on a Linux host with HTTPS. See [Deploying on a Linux VPS](docs/DEPLOY_VPS.md).
 
-### 2. Build and install the CLI
+### 2. Install the verified CLI
+
+For Bash:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KingHacker9000/shellbell/main/install.sh \
+  | sh -s -- --shell bash
+```
+
+Replace `bash` with `zsh` or `fish` as needed. The installer detects Linux x86-64 or ARM64, downloads the latest stable archive, verifies it against the release `SHA256SUMS`, installs to `~/.local/bin`, and can safely replace an older CLI binary.
+
+Build from source instead:
 
 ```sh
 cargo install --path crates/shellbell-cli --locked
+shellbell install
 ```
-
-Prebuilt Linux x86-64 and ARM64 CLI archives are also attached to tagged GitHub releases. Verify downloads with the published `SHA256SUMS` file before installing the binary.
 
 ### 3. Pair this machine
 
@@ -43,13 +59,14 @@ Approve the pairing request in the Shellbell web app.
 
 Open the Shellbell web app, go to **Receivers**, allow notifications, and register the browser with tags such as `phone` or `pc`.
 
-### 5. Install shell integration
+### 5. Validate the setup
 
 ```sh
-shellbell install
+shellbell doctor
+shellbell ring "Shellbell setup complete" --to all
 ```
 
-Start a new shell after installation.
+Start a new shell after installing shell integration.
 
 ## Everyday use
 
@@ -117,6 +134,22 @@ Each terminal pane or nested interactive shell has its own session and must be a
 | Native PowerShell / CMD | Not yet supported |
 | macOS | Not yet supported |
 
+## Operations
+
+Create a consistent relay backup:
+
+```sh
+bash scripts/relay-backup.sh
+```
+
+Run safe source diagnostics and optionally send a test notification:
+
+```sh
+bash scripts/diagnose.sh --send --to all
+```
+
+See [Relay backup and restore](docs/BACKUP_RESTORE.md) and [Safe diagnostics](docs/DIAGNOSTICS.md).
+
 ## Privacy and security
 
 Shell hooks send small, timeout-bounded messages over a same-user Unix socket. Network delivery happens only in the local daemon. The relay receives an event ID, an optional notification message, and receiver tags.
@@ -131,10 +164,14 @@ See:
 
 ## Documentation
 
+- [Guided setup site](https://kinghacker9000.github.io/shellbell/)
 - [Linux and WSL installation](docs/LINUX_WSL.md)
+- [Raspberry Pi 5 setup](docs/PI5.md)
 - [Shell integrations](docs/SHELL_INTEGRATIONS.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Deploying on a Linux VPS](docs/DEPLOY_VPS.md)
+- [Relay backup and restore](docs/BACKUP_RESTORE.md)
+- [Safe diagnostics](docs/DIAGNOSTICS.md)
 - [Operations and troubleshooting](docs/OPERATIONS.md)
 - [Release process](docs/RELEASING.md)
 - [Local development](docs/LOCAL_DEVELOPMENT.md)

@@ -8,6 +8,12 @@ paths=(
   CONTRIBUTING.md
   SECURITY.md
   CODE_OF_CONDUCT.md
+  install.sh
+  scripts/relay-backup.sh
+  scripts/relay-restore.sh
+  scripts/diagnose.sh
+  scripts/test-installer.sh
+  site
   docs
   deploy
   .github
