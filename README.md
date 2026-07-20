@@ -6,7 +6,7 @@ It is a private, self-hosted tool for people who leave long-running commands in 
 
 Shellbell watches shell activity boundaries, not command contents. It does **not** collect command text, output, exit codes, environment variables, working directories, process lists, or inferred success and failure.
 
-> Shellbell is preparing for its first public release. The current source version is `0.1.0`.
+> The current release line is `0.1.0`. Prereleases use tags such as `v0.1.0-rc.1`.
 
 ## What it does
 
@@ -28,6 +28,8 @@ Deploy the relay and PWA on a Linux host with HTTPS. See [Deploying on a Linux V
 ```sh
 cargo install --path crates/shellbell-cli --locked
 ```
+
+Prebuilt Linux x86-64 and ARM64 CLI archives are also attached to tagged GitHub releases. Verify downloads with the published `SHA256SUMS` file before installing the binary.
 
 ### 3. Pair this machine
 
@@ -134,6 +136,7 @@ See:
 - [Configuration](docs/CONFIGURATION.md)
 - [Deploying on a Linux VPS](docs/DEPLOY_VPS.md)
 - [Operations and troubleshooting](docs/OPERATIONS.md)
+- [Release process](docs/RELEASING.md)
 - [Local development](docs/LOCAL_DEVELOPMENT.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
