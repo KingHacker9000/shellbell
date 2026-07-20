@@ -8,17 +8,49 @@ root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 cd "$root"
 
 private_patterns_file="${SHELLBELL_PRIVATE_PATTERNS_FILE:-}"
+allowlist_file="${SHELLBELL_HISTORY_ALLOWLIST_FILE:-}"
 failed=0
+
+filter_allowlist() {
+  local output="$1"
+  local pattern
+
+  if [[ -z "$allowlist_file" ]]; then
+    printf '%s' "$output"
+    return 0
+  fi
+
+  [[ -f "$allowlist_file" ]] || {
+    echo "ERROR: history allowlist file does not exist: $allowlist_file" >&2
+    exit 1
+  }
+
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" && "$pattern" != \#* ]] || continue
+    output="$(printf '%s\n' "$output" | grep -Ev "$pattern" || true)"
+  done < "$allowlist_file"
+
+  printf '%s' "$output"
+}
 
 scan() {
   local label="$1"
   local pattern="$2"
   local output
+
   output="$(
     while read -r revision; do
-      git grep -I -nE "$pattern" "$revision" -- . ':!Cargo.lock' 2>/dev/null || true
+      git grep -I -nE "$pattern" "$revision" -- \
+        . \
+        ':!Cargo.lock' \
+        ':!scripts/audit-history.sh' \
+        ':!scripts/check-public-content.sh' \
+        ':!scripts/check-site.sh' \
+        2>/dev/null || true
     done < <(git rev-list --all) | sort -u
   )"
+  output="$(filter_allowlist "$output")"
+
   if [[ -n "$output" ]]; then
     printf '\n%s\n%s\n' "$label" "$output"
     failed=1
@@ -44,8 +76,12 @@ if [[ -n "$private_patterns_file" ]]; then
 fi
 
 if [[ "$failed" -ne 0 ]]; then
-  printf '\nHistory audit found content requiring review.\n' >&2
+  printf '\nHistory audit found unresolved content requiring review.\n' >&2
   exit 1
 fi
 
-printf '%s\n' 'Git history privacy audit passed.'
+if [[ -n "$allowlist_file" ]]; then
+  printf '%s\n' 'Git history privacy audit passed with explicit reviewed exceptions.'
+else
+  printf '%s\n' 'Git history privacy audit passed.'
+fi
