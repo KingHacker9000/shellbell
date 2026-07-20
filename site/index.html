@@ -82,8 +82,8 @@
       <article>
         <p class="eyebrow">Self-hosting</p>
         <h2>Own the relay</h2>
-        <p>Run the relay behind HTTPS, bind it to loopback, and preserve its SQLite data. Shellbell remains single-owner and private by design.</p>
-        <a href="https://github.com/KingHacker9000/shellbell/blob/main/docs/DEPLOY_VPS.md">Deployment guide →</a>
+        <p>Deploy the published multi-architecture image behind HTTPS, generate your own secrets, and retain the relay database on infrastructure you control.</p>
+        <a href="#self-host">Open guided setup ↓</a>
       </article>
       <article>
         <p class="eyebrow">Operations</p>
@@ -91,6 +91,59 @@
         <p>Checksum-backed backup and restore helpers preserve Compose configuration, secrets, SQLite state, pairings, and receivers.</p>
         <a href="https://github.com/KingHacker9000/shellbell/blob/main/docs/BACKUP_RESTORE.md">Backup guide →</a>
       </article>
+    </section>
+
+    <section class="panel self-host-panel" id="self-host">
+      <div class="section-heading with-corner-link">
+        <div>
+          <p class="eyebrow">Self-hosting</p>
+          <h2>Own the relay</h2>
+          <p class="section-lede">Use a Linux VPS or Docker host, your own domain, and the published Shellbell image. The commands below keep the relay on loopback and expose only HTTPS through Caddy.</p>
+        </div>
+        <a class="corner-link" href="https://github.com/KingHacker9000/shellbell/blob/main/docs/DEPLOY_VPS.md">Full deployment docs ↗</a>
+      </div>
+
+      <div class="controls self-host-controls">
+        <label>Relay domain
+          <input id="self-domain" type="text" value="shellbell.example.com" inputmode="url" spellcheck="false">
+        </label>
+        <label>Owner email
+          <input id="owner-email" type="email" value="owner@example.com" spellcheck="false">
+        </label>
+      </div>
+
+      <aside class="requirements">
+        <strong>Before you begin</strong>
+        <p>Point your domain's A or AAAA record at the host, allow inbound TCP 80 and 443, and install Docker Compose, Caddy, curl, OpenSSL, Node.js/npm, and jq. Port 8080 must not be publicly exposed.</p>
+      </aside>
+
+      <ol class="steps self-host-steps">
+        <li>
+          <div><span>1</span><h3>Create the private stack directory</h3></div>
+          <p>Download the reviewed Compose definition into a root-owned application location while keeping day-to-day edits available to your current administrator account.</p>
+          <pre><code id="host-prepare-command"></code><button data-copy="host-prepare-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>2</span><h3>Generate owner and Web Push secrets</h3></div>
+          <p>The token and VAPID keys are generated on your server. The page never receives or stores them. Keep the resulting <code>.env</code> file private and out of Git.</p>
+          <pre><code id="host-secrets-command"></code><button data-copy="host-secrets-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>3</span><h3>Start and validate the relay</h3></div>
+          <p>Compose pulls the stable multi-architecture image, starts the relay, and verifies its loopback-only health endpoint before public exposure.</p>
+          <pre><code id="host-start-command"></code><button data-copy="host-start-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>4</span><h3>Put HTTPS in front with Caddy</h3></div>
+          <p>This creates a dedicated site file, validates the complete Caddy configuration, reloads it, and checks the public health endpoint.</p>
+          <pre><code id="host-caddy-command"></code><button data-copy="host-caddy-command">Copy</button></pre>
+        </li>
+        <li>
+          <div><span>5</span><h3>Claim the owner session</h3></div>
+          <p>Open the relay, paste the locally retrieved bootstrap token into the owner sign-in form, install the PWA, and register your first receiver.</p>
+          <pre><code id="host-finish-command"></code><button data-copy="host-finish-command">Copy</button></pre>
+        </li>
+      </ol>
     </section>
 
     <section class="privacy">
