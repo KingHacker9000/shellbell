@@ -9,8 +9,15 @@ for file in site/index.html site/styles.css site/app.js; do
 done
 
 grep -Fq 'id="relay-url"' site/index.html
+grep -Fq 'id="self-host"' site/index.html
+grep -Fq 'id="self-domain"' site/index.html
+grep -Fq 'id="owner-email"' site/index.html
+grep -Fq 'id="host-secrets-command"' site/index.html
+grep -Fq 'Full deployment docs' site/index.html
 grep -Fq 'data-copy' site/index.html
 grep -Fq 'renderCommands' site/app.js
+grep -Fq 'renderHostCommands' site/app.js
+grep -Fq 'SHELLBELL_INSECURE_LOCAL_HTTP=false' site/app.js
 
 if grep -RniE '(/home/[A-Za-z0-9._-]+/|[A-Za-z]:\\Users\\)' site; then
   echo 'absolute user path found in documentation site' >&2
