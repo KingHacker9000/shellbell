@@ -6,6 +6,15 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Inline guided self-hosting setup on the GitHub Pages site, including secret generation, Compose startup, HTTPS configuration, owner sign-in, and end-to-end validation.
+
+### Changed
+
+- The public Compose example now pulls the verified `v0.1.1` multi-architecture image and defaults to secure HTTPS mode.
+- The full VPS deployment guide now mirrors the guided setup while retaining detailed operational and rollback notes.
+
 ## [0.1.1] - 2026-07-20
 
 ### Added
