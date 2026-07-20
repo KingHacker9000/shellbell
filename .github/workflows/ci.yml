@@ -63,7 +63,7 @@ jobs:
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
         run: cargo check --locked --target aarch64-unknown-linux-gnu -p shellbell-cli -p shellbell-local -p shellbell-protocol
 
-  docker-and-public-content:
+  docker-and-staged-content:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
