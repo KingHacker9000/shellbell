@@ -1,9 +1,12 @@
 [package]
 name = "shellbell-relay"
+description = "Private notification relay and PWA backend for Shellbell"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 anyhow.workspace = true
