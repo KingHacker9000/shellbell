@@ -31,7 +31,7 @@ export default function App() {
   if (auth === 'login' || auth === 'expired') return <TokenScreen title={auth === 'expired' ? 'Owner session expired' : 'Owner sign in'} detail="Enter the owner bootstrap token to create a new revocable session." button="Sign in" onSubmit={(token) => api.login(token).then(() => setAuth('authenticated')).catch(handleError)} error={error} />
 
   return <div className="app">
-    <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><span className="privacy">Manual notifications only</span></header>
+    <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><span className="privacy">Private terminal notifications</span></header>
     {offline && <div className="banner" role="status">Offline — showing the current view; changes will not work.</div>}
     {error && <div className="banner error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     <main>{view === 'rings' ? <Rings onError={handleError} /> : view === 'sources' ? <Sources onError={handleError} /> : view === 'receivers' ? <Receivers onError={handleError} /> : <SettingsView onError={handleError} onLogout={() => api.logout().then(() => setAuth('login')).catch(handleError)} />}</main>
@@ -59,7 +59,7 @@ function useLoad<T>(loader: () => Promise<T>, onError: (error: unknown) => void,
 
 function Rings({ onError }: { onError: (error: unknown) => void }) {
   const loader = useCallback(() => api.rings(), []); const { data } = useLoad(loader, onError, 15000)
-  return <Section title="Recent rings" detail="Only manual messages and routing metadata are retained.">{!data ? <Loading /> : data.rings.length === 0 ? <Empty>No rings yet. Pair a source, then run <code>shellbell ring</code>.</Empty> : <div className="list">{data.rings.map((ring: Ring) => <article className="list-item" key={`${ring.source_id}-${ring.event_id}`}><div><strong>{ring.message || 'Your terminal is ready'}</strong><p>{ring.source_name} · {new Date(ring.created_at).toLocaleString()}</p></div><div className="tags">{ring.target_tags.length ? ring.target_tags.map((tag) => <span key={tag}>{tag}</span>) : <span>all</span>}</div></article>)}</div>}</Section>
+  return <Section title="Recent rings" detail="Only notification messages and privacy-safe routing metadata are retained.">{!data ? <Loading /> : data.rings.length === 0 ? <Empty>No rings yet. Pair a source, then run <code>shellbell ring</code>.</Empty> : <div className="list">{data.rings.map((ring: Ring) => <article className="list-item" key={`${ring.source_id}-${ring.event_id}`}><div><strong>{ring.message || 'Your terminal is ready'}</strong><p>{ring.source_name} · {new Date(ring.created_at).toLocaleString()}</p></div><div className="tags">{ring.target_tags.length ? ring.target_tags.map((tag) => <span key={tag}>{tag}</span>) : <span>all</span>}</div></article>)}</div>}</Section>
 }
 
 function Pairings({ onError }: { onError: (error: unknown) => void }) {
