@@ -25,8 +25,8 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Install ARM64 linker
@@ -86,7 +86,7 @@ jobs:
             "$version" \
             dist
           (cd dist && sha256sum -c *.sha256)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: shellbell-${{ matrix.platform }}
           path: dist/*
@@ -98,8 +98,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
       - name: Verify release version
@@ -143,8 +143,8 @@ jobs:
     needs: [cli-archives, container-image]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           pattern: shellbell-linux-*
           path: dist
