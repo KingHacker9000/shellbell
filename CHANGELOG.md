@@ -6,6 +6,19 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Checksum-verifying Linux installer and upgrade path.
+- Guided static setup site for Linux, WSL 2, and Raspberry Pi 5.
+- Relay backup and restore helpers with safety snapshots and checksum manifests.
+- Safe source diagnostics and full-history privacy-audit helpers.
+- Raspberry Pi 5 setup and acceptance documentation.
+
+### Changed
+
+- Release automation now publishes the installer and includes it in `SHA256SUMS`.
+- CI validates installer upgrades, checksum rejection, operational scripts, and the documentation site.
+
 ## [0.1.0] - 2026-07-20
 
 First stable public release.
