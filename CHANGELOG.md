@@ -6,6 +6,8 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-20
+
 ### Added
 
 - Checksum-verifying Linux installer and upgrade path.
@@ -86,6 +88,7 @@ First public release candidate.
 - Simplified public documentation for first-time users.
 - Reframed internal milestone notes as a public roadmap and operations guide.
 
-[Unreleased]: https://github.com/KingHacker9000/shellbell/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/KingHacker9000/shellbell/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.1
 [0.1.0]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.0
 [0.1.0-rc.1]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.0-rc.1
