@@ -2787,7 +2787,7 @@ dependencies = [
 
 [[package]]
 name = "shellbell-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2808,7 +2808,7 @@ dependencies = [
 
 [[package]]
 name = "shellbell-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "rand 0.9.5",
@@ -2818,7 +2818,7 @@ dependencies = [
 
 [[package]]
 name = "shellbell-local"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2840,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "shellbell-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "serde",
@@ -2851,7 +2851,7 @@ dependencies = [
 
 [[package]]
 name = "shellbell-relay"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",

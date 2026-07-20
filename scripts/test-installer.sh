@@ -12,11 +12,27 @@ binary="$1"
   exit 1
 }
 
+binary_version_output="$("$binary" --version)" || {
+  echo "binary could not report its version: $binary" >&2
+  exit 1
+}
+case "$binary_version_output" in
+  shellbell\ *) binary_version="${binary_version_output#shellbell }" ;;
+  *)
+    echo "unexpected binary version output: $binary_version_output" >&2
+    exit 1
+    ;;
+esac
+[[ "$binary_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  echo "unexpected binary version: $binary_version" >&2
+  exit 1
+}
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-version='0.1.0-test.1'
+version="${binary_version}-test.1"
 release_dir="$tmp/release"
 prefix="$tmp/prefix"
 mkdir -p "$release_dir"
@@ -43,7 +59,7 @@ SHELLBELL_PREFIX="$prefix" \
 
 before_hash="$(sha256sum "$prefix/bin/shellbell" | awk '{print $1}')"
 
-bad_version='0.1.0-test.2'
+bad_version="${binary_version}-test.2"
 bad_release="$tmp/bad-release"
 bad_binary="$tmp/bad-shellbell"
 mkdir -p "$bad_release"
