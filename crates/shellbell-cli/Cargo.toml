@@ -1,9 +1,12 @@
 [package]
 name = "shellbell-cli"
+description = "Private self-hosted terminal attention notifications"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [[bin]]
 name = "shellbell"
