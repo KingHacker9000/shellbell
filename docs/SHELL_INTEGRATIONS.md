@@ -2,6 +2,26 @@
 
 Managed hooks live under `~/.config/shellbell/hooks`. Startup files contain one marked source line. All hooks generate a fresh random session UUID per shell PID, export `SHELLBELL_SESSION_ID` and safe shell type metadata to children, ignore command-text hook arguments, redirect local helper errors, and fail open.
 
+## Arming boundary
+
+`shellbell on` and `shellbell once` arm the current interactive shell session. Monitoring begins with the next command submitted after the arming prompt returns.
+
+Do not paste the arming command and the monitored command as one multiline prompt submission. Shellbell measures prompt-to-prompt execution boundaries and cannot retroactively count a command that began in the same submission that armed the session.
+
+Correct:
+
+```sh
+shellbell once --after 5s --idle 5s --to pc
+```
+
+Wait for the prompt, then submit:
+
+```sh
+sleep 7
+```
+
+After `sleep 7` returns, do not submit another command during the idle window. Any new command cancels settling and extends the current activity burst.
+
 ## Bash
 
 The Bash hook applies only to interactive shells. It snapshots the existing `DEBUG` and `EXIT` traps in shell memory, invokes their bodies from wrappers, and does not transmit or persist them. The first DEBUG boundary after a prompt emits `command_start`; a guard prevents recursion and subsequent DEBUG callbacks for the same foreground command do not create time.
