@@ -2,7 +2,7 @@ name: Linux CI
 
 on:
   push:
-    branches: [main, "milestone/**"]
+    branches: [main, "milestone/**", "release/**"]
   pull_request:
 
 permissions:
@@ -26,6 +26,17 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Rust and shell integration tests
         run: cargo test --workspace --all-targets --locked
+      - name: Release archive smoke test
+        shell: bash
+        run: |
+          cargo build --locked --release --package shellbell-cli
+          bash scripts/package-release.sh \
+            target/release/shellbell \
+            linux-x86_64 \
+            0.1.0-rc.1 \
+            /tmp/shellbell-release
+          (cd /tmp/shellbell-release && sha256sum -c *.sha256)
+          tar -tzf /tmp/shellbell-release/shellbell-0.1.0-rc.1-linux-x86_64.tar.gz
 
   pwa:
     runs-on: ubuntu-24.04
