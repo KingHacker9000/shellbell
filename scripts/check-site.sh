@@ -50,7 +50,7 @@ grep -Fq '# Shellbell' site/llms.txt
 grep -Fq 'Full AI context' site/llms.txt
 grep -Fq '# Shellbell full context' site/llms-full.txt
 
-grep -Fq 'Current stable release:</strong> `v0.1.1`' README.md
+grep -Fq '> **Current stable release:** `v0.1.1`' README.md
 grep -Fq 'site/favicon.svg' README.md
 
 python3 <<'PY'
