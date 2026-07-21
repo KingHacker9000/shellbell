@@ -1,0 +1,238 @@
+# Shellbell full context
+
+## Overview
+
+Shellbell is an open-source, private, self-hosted terminal notification system. It is designed for people who leave long-running commands in a terminal and want a notification when the terminal is ready for attention.
+
+Shellbell supports three workflows:
+
+1. Manual rings with `shellbell ring`.
+2. One-shot monitoring with `shellbell once`.
+3. Continuous opt-in monitoring with `shellbell on`.
+
+The current stable release is v0.1.1. Shellbell is licensed under the MIT License.
+
+## Privacy boundary
+
+Shellbell observes shell activity boundaries and timing. It does not collect:
+
+- command text;
+- command output;
+- exit codes;
+- environment variables;
+- working directories;
+- process lists;
+- inferred command success or failure.
+
+Shell hooks send small timeout-bounded state messages over a same-user Unix socket. Network delivery occurs in the per-user local daemon. The relay receives an event identifier, an optional user-provided notification message, and receiver tags.
+
+## Architecture
+
+The main data path is:
+
+```text
+interactive shell -> same-user local daemon -> private relay -> Web Push -> tagged browser receivers
+```
+
+Components:
+
+- Shell integrations for Bash, Zsh, and Fish register interactive sessions and report state transitions.
+- A per-user local daemon owns network delivery and a durable retry queue.
+- A private self-hosted relay stores privacy-safe notification messages and routing metadata in SQLite.
+- An installable PWA registers tagged browser receivers and receives Web Push notifications.
+- Source credentials and owner sessions are revocable.
+
+## Supported environments
+
+Supported client platforms:
+
+- Linux x86-64;
+- Linux ARM64;
+- Raspberry Pi OS 64-bit;
+- WSL 2.
+
+Supported interactive shells:
+
+- Bash;
+- Zsh;
+- Fish.
+
+Native PowerShell, CMD, and macOS are not currently supported.
+
+## Verified installation
+
+The canonical guided setup is:
+
+https://kinghacker9000.github.io/shellbell/
+
+For Bash, the stable installer command is:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KingHacker9000/shellbell/main/install.sh \
+  | sh -s -- --shell bash
+```
+
+Replace `bash` with `zsh` or `fish` when needed. The installer detects Linux x86-64 or ARM64, downloads the latest stable archive, verifies it against release SHA256SUMS, validates the executable, installs it to `~/.local/bin`, writes the selected shell integration, and configures the per-user daemon.
+
+Build from source:
+
+```sh
+cargo install --path crates/shellbell-cli --locked
+shellbell install
+```
+
+## Pairing
+
+Pair a source machine with the private relay:
+
+```sh
+shellbell pair https://shellbell.example.com
+```
+
+The CLI displays a short-lived pairing code. The owner approves the code in the Shellbell PWA. The source credential is then stored locally with private permissions.
+
+## Receiver registration
+
+Open the private Shellbell web application, install the PWA, allow notifications, and register each browser as a receiver. Receivers can be tagged with values such as:
+
+- phone;
+- pc;
+- mobile;
+- desktop.
+
+Delivery commands can target one tag or `all`.
+
+## Validation
+
+Run diagnostics and a manual delivery test:
+
+```sh
+shellbell doctor
+shellbell ring "Shellbell setup complete" --to all
+```
+
+A healthy source reports valid configuration, paired credentials, relay connectivity, a valid source token, daemon IPC, durable queue status, service status, shell integration, and current interactive session registration.
+
+## Everyday commands
+
+One-shot monitoring:
+
+```sh
+shellbell once --after 5m --idle 30s --to phone
+```
+
+Continuous monitoring:
+
+```sh
+shellbell on --after 2m --idle 45s --to all
+```
+
+Manual ring:
+
+```sh
+shellbell ring "Deployment finished" --to phone
+```
+
+Status and disarm:
+
+```sh
+shellbell status
+shellbell off
+```
+
+Session label:
+
+```sh
+shellbell name "Training run"
+```
+
+## Monitoring state model
+
+The automatic monitoring state model is:
+
+```text
+DISARMED -> ARMED -> ACTIVE -> SETTLING
+```
+
+A notification is created only after:
+
+1. the shell session is armed;
+2. foreground commands accumulate the configured active time;
+3. the prompt returns; and
+4. no new command begins during the idle window.
+
+Each terminal pane or nested interactive shell has an independent session and must be armed separately. Background jobs are not tracked after the prompt returns. Interactive applications that retain foreground control can call `shellbell ring` directly when appropriate.
+
+## Self-hosting the relay
+
+The canonical self-hosting guide is:
+
+https://github.com/KingHacker9000/shellbell/blob/main/docs/DEPLOY_VPS.md
+
+Recommended deployment properties:
+
+- Linux VPS or Docker host;
+- public domain with A or AAAA records;
+- inbound TCP 80 and 443 only;
+- relay bound to `127.0.0.1:8080`;
+- Caddy or another reviewed HTTPS reverse proxy as public ingress;
+- private `.env` file with mode `0600`;
+- persistent SQLite data;
+- verified multi-architecture release image;
+- tested backups before upgrades.
+
+The public Compose example uses:
+
+```text
+ghcr.io/kinghacker9000/shellbell:v0.1.1
+```
+
+Required private environment values include:
+
+- `SHELLBELL_OWNER_BOOTSTRAP_TOKEN`;
+- `SHELLBELL_VAPID_PUBLIC_KEY`;
+- `SHELLBELL_VAPID_PRIVATE_KEY`;
+- `SHELLBELL_VAPID_SUBJECT`.
+
+Never commit or publish the owner bootstrap token, VAPID private key, source tokens, Push subscription endpoints, or encryption keys.
+
+## Operations
+
+Create a relay backup:
+
+```sh
+bash scripts/relay-backup.sh
+```
+
+Run safe diagnostics and optionally send a notification:
+
+```sh
+bash scripts/diagnose.sh --send --to all
+```
+
+Operational documentation:
+
+- Backup and restore: https://github.com/KingHacker9000/shellbell/blob/main/docs/BACKUP_RESTORE.md
+- Diagnostics: https://github.com/KingHacker9000/shellbell/blob/main/docs/DIAGNOSTICS.md
+- Operations: https://github.com/KingHacker9000/shellbell/blob/main/docs/OPERATIONS.md
+
+## Technical documentation
+
+- Architecture: https://github.com/KingHacker9000/shellbell/blob/main/docs/ARCHITECTURE.md
+- Security model: https://github.com/KingHacker9000/shellbell/blob/main/docs/SECURITY.md
+- HTTP protocol: https://github.com/KingHacker9000/shellbell/blob/main/docs/PROTOCOL.md
+- Local IPC: https://github.com/KingHacker9000/shellbell/blob/main/docs/LOCAL_IPC.md
+- Configuration: https://github.com/KingHacker9000/shellbell/blob/main/docs/CONFIGURATION.md
+- Shell integrations: https://github.com/KingHacker9000/shellbell/blob/main/docs/SHELL_INTEGRATIONS.md
+- Local development: https://github.com/KingHacker9000/shellbell/blob/main/docs/LOCAL_DEVELOPMENT.md
+- Release process: https://github.com/KingHacker9000/shellbell/blob/main/docs/RELEASING.md
+
+## Canonical project links
+
+- Website: https://kinghacker9000.github.io/shellbell/
+- Repository: https://github.com/KingHacker9000/shellbell
+- Releases: https://github.com/KingHacker9000/shellbell/releases
+- Security policy: https://github.com/KingHacker9000/shellbell/blob/main/SECURITY.md
+- Roadmap: https://github.com/KingHacker9000/shellbell/blob/main/ROADMAP.md
+- Changelog: https://github.com/KingHacker9000/shellbell/blob/main/CHANGELOG.md
+- License: https://github.com/KingHacker9000/shellbell/blob/main/LICENSE
