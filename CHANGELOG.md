@@ -9,12 +9,16 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Inline guided self-hosting setup on the GitHub Pages site, including secret generation, Compose startup, HTTPS configuration, owner sign-in, and end-to-end validation.
+- Canonical metadata, structured software data, an XML sitemap, crawler directives, and `llms.txt`/`llms-full.txt` discovery files for search engines and AI agents.
+- A reusable Shellbell visual mark for the Pages site and repository README.
 
 ### Changed
 
 - The public Compose example now pulls the verified `v0.1.1` multi-architecture image and defaults to secure HTTPS mode.
 - The full VPS deployment guide now mirrors the guided setup while retaining detailed operational and rollback notes.
 - Official checkout, Node, artifact, and Pages actions now use Node 24-compatible major versions.
+- The GitHub Pages layout is mobile-first, with overflow-safe command blocks, touch-sized controls, responsive navigation, and narrow-screen typography.
+- The README now has a polished project header, release and CI badges, clearer product positioning, and a direct guided-setup path.
 
 ## [0.1.1] - 2026-07-20
 

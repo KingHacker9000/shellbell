@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kinghacker9000.github.io/shellbell/sitemap.xml
