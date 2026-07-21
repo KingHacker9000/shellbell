@@ -1,0 +1,51 @@
+# Shellbell
+
+> Shellbell is a private, self-hosted terminal notification system. It sends Web Push notifications when long-running terminal work is ready for attention without collecting command text, command output, exit codes, environment variables, working directories, process lists, or inferred outcomes.
+
+Shellbell is open-source software for Linux x86-64, Linux ARM64, Raspberry Pi OS, and WSL 2. It supports opt-in monitoring for Bash, Zsh, and Fish, manual notifications, a durable local queue, a private relay, an installable PWA, and tagged notification receivers.
+
+## Primary resources
+
+- [Guided installation and self-hosting](https://kinghacker9000.github.io/shellbell/): Mobile-friendly setup for the CLI, pairing, receivers, validation, and owning the relay.
+- [GitHub repository](https://github.com/KingHacker9000/shellbell): Canonical source code, issues, pull requests, and project history.
+- [README](https://github.com/KingHacker9000/shellbell/blob/main/README.md): Product overview, quick start, commands, supported environments, and documentation map.
+- [Latest release](https://github.com/KingHacker9000/shellbell/releases/latest): Verified Linux x86-64 and ARM64 archives, installer, checksums, and container image details.
+- [Full AI context](https://kinghacker9000.github.io/shellbell/llms-full.txt): Consolidated machine-readable description, setup, architecture, privacy boundaries, and usage.
+
+## Setup and operations
+
+- [Linux and WSL installation](https://github.com/KingHacker9000/shellbell/blob/main/docs/LINUX_WSL.md)
+- [Raspberry Pi 5 setup](https://github.com/KingHacker9000/shellbell/blob/main/docs/PI5.md)
+- [Self-hosting the relay](https://github.com/KingHacker9000/shellbell/blob/main/docs/DEPLOY_VPS.md)
+- [Configuration](https://github.com/KingHacker9000/shellbell/blob/main/docs/CONFIGURATION.md)
+- [Shell integrations](https://github.com/KingHacker9000/shellbell/blob/main/docs/SHELL_INTEGRATIONS.md)
+- [Backup and restore](https://github.com/KingHacker9000/shellbell/blob/main/docs/BACKUP_RESTORE.md)
+- [Diagnostics](https://github.com/KingHacker9000/shellbell/blob/main/docs/DIAGNOSTICS.md)
+- [Operations and troubleshooting](https://github.com/KingHacker9000/shellbell/blob/main/docs/OPERATIONS.md)
+
+## Technical references
+
+- [Architecture](https://github.com/KingHacker9000/shellbell/blob/main/docs/ARCHITECTURE.md)
+- [Security and privacy model](https://github.com/KingHacker9000/shellbell/blob/main/docs/SECURITY.md)
+- [HTTP protocol](https://github.com/KingHacker9000/shellbell/blob/main/docs/PROTOCOL.md)
+- [Local IPC](https://github.com/KingHacker9000/shellbell/blob/main/docs/LOCAL_IPC.md)
+- [Local development](https://github.com/KingHacker9000/shellbell/blob/main/docs/LOCAL_DEVELOPMENT.md)
+- [Release process](https://github.com/KingHacker9000/shellbell/blob/main/docs/RELEASING.md)
+
+## Project policy
+
+- [Security policy](https://github.com/KingHacker9000/shellbell/blob/main/SECURITY.md)
+- [Contributing](https://github.com/KingHacker9000/shellbell/blob/main/CONTRIBUTING.md)
+- [Roadmap](https://github.com/KingHacker9000/shellbell/blob/main/ROADMAP.md)
+- [Changelog](https://github.com/KingHacker9000/shellbell/blob/main/CHANGELOG.md)
+- [MIT license](https://github.com/KingHacker9000/shellbell/blob/main/LICENSE)
+
+## Canonical facts
+
+- Stable release: v0.1.1
+- License: MIT
+- Relay model: private, single-owner, self-hosted
+- Client platforms: Linux x86-64, Linux ARM64, Raspberry Pi OS 64-bit, WSL 2
+- Shells: Bash, Zsh, Fish
+- Delivery: Web Push to tagged browser receivers
+- Privacy boundary: shell activity timing and state transitions, not shell contents
