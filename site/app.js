@@ -8,6 +8,20 @@ const command = (id, value) => {
   document.querySelector(`#${id}`).textContent = value;
 };
 
+const normalizeRelayUrl = (value) => {
+  const candidate = value.trim() || 'https://shellbell.example.com';
+  const withScheme = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
+
+  try {
+    const parsed = new URL(withScheme);
+    return ['http:', 'https:'].includes(parsed.protocol)
+      ? parsed.href.replace(/\/$/, '')
+      : 'https://shellbell.example.com';
+  } catch {
+    return 'https://shellbell.example.com';
+  }
+};
+
 const validDomain = (value) => {
   const candidate = value.trim().toLowerCase();
   const hostname = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -23,7 +37,7 @@ const validEmail = (value) => {
 
 function renderClientCommands() {
   const selectedShell = shell.value;
-  const url = relayUrl.value.trim() || 'https://shellbell.example.com';
+  const url = normalizeRelayUrl(relayUrl.value);
   const platformNote = platform.value === 'pi'
     ? 'uname -m  # expected: aarch64\n'
     : platform.value === 'wsl'
@@ -122,6 +136,28 @@ function renderCommands() {
   renderHostCommands();
 }
 
+function legacyCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  return copied;
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  return legacyCopy(text);
+}
+
 for (const input of [platform, shell, relayUrl, selfDomain, ownerEmail]) {
   input.addEventListener('input', renderCommands);
 }
@@ -132,13 +168,13 @@ for (const button of document.querySelectorAll('[data-copy]')) {
     const original = button.textContent;
 
     try {
-      await navigator.clipboard.writeText(target.textContent);
-      button.textContent = 'Copied';
+      const copied = await copyText(target.textContent);
+      button.textContent = copied ? 'Copied' : 'Select text';
     } catch {
       button.textContent = 'Select text';
     }
 
-    setTimeout(() => { button.textContent = original; }, 1200);
+    setTimeout(() => { button.textContent = original; }, 1400);
   });
 }
 
