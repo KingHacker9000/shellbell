@@ -1,33 +1,65 @@
-# Shellbell
+<div align="center">
+  <img src="site/favicon.svg" width="88" height="88" alt="Shellbell logo">
 
-Shellbell sends a notification when your terminal is ready for attention.
+  <h1>Shellbell</h1>
 
-It is a private, self-hosted tool for people who leave long-running commands in a terminal and do not want to keep checking the screen. Shellbell supports manual notifications and opt-in automatic monitoring for interactive Bash, Zsh, and Fish sessions.
+  <p><strong>Private terminal notifications, self-hosted end to end.</strong></p>
+  <p>Leave the terminal. Shellbell calls you back when your work is ready for attention.</p>
 
-Shellbell watches shell activity boundaries, not command contents. It does **not** collect command text, output, exit codes, environment variables, working directories, process lists, or inferred success and failure.
+  <p>
+    <a href="https://github.com/KingHacker9000/shellbell/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/KingHacker9000/shellbell?style=for-the-badge&logo=github&label=release"></a>
+    <a href="https://github.com/KingHacker9000/shellbell/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/KingHacker9000/shellbell/ci.yml?branch=main&style=for-the-badge&label=CI"></a>
+    <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/KingHacker9000/shellbell?style=for-the-badge"></a>
+    <img alt="Linux and WSL" src="https://img.shields.io/badge/Linux%20%7C%20WSL%20%7C%20Pi-supported-2f7b57?style=for-the-badge&logo=linux&logoColor=white">
+  </p>
 
-> The current stable release is `v0.1.0`.
+  <p>
+    <a href="https://kinghacker9000.github.io/shellbell/"><strong>Guided setup</strong></a>
+    ·
+    <a href="https://github.com/KingHacker9000/shellbell/releases/latest">Download</a>
+    ·
+    <a href="docs/">Documentation</a>
+    ·
+    <a href="SECURITY.md">Security</a>
+    ·
+    <a href="ROADMAP.md">Roadmap</a>
+  </p>
+</div>
 
-## What it does
+---
 
-- Sends notifications to tagged browser receivers such as `phone` and `pc`.
-- Provides `on`, `once`, `off`, `status`, `name`, and manual `ring` commands.
-- Accumulates foreground command time across short prompt gaps.
-- Delivers through a private relay, installable PWA, and Web Push.
-- Keeps a durable local retry queue when the relay is temporarily unavailable.
-- Runs on Linux x86-64, Linux ARM64, Raspberry Pi OS, and WSL 2.
+| 🔒 **Private by contract** | 🔔 **Reliable delivery** | 🐚 **Shell-native** |
+|---|---|---|
+| Observes activity boundaries, never command text, output, environment, directories, exit codes, or inferred outcomes. | Durable local queue, idempotent relay delivery, tagged receivers, and high-urgency Web Push. | Opt-in monitoring for Bash, Zsh, and Fish on Linux x86-64, ARM64, Raspberry Pi, and WSL 2. |
+
+```text
+interactive shell → same-user local daemon → private relay → Web Push → your devices
+```
+
+Shellbell is an open-source notification system for long-running terminal work. Arm one command, keep monitoring a session, or send a manual ring. When the prompt is ready and remains idle for the configured window, Shellbell notifies the receivers you selected.
+
+> **Current stable release:** `v0.1.1`
+
+## Why Shellbell
+
+Long-running builds, deployments, downloads, model training, and remote jobs often finish while you are away from the terminal. Shellbell lets you stop polling the screen without sending your command history or terminal contents to a hosted service.
+
+- **Own the infrastructure:** run the relay and SQLite database on your server.
+- **Own the clients:** pair Linux, WSL 2, and Raspberry Pi machines with revocable source credentials.
+- **Own the receivers:** install the PWA on your phone or desktop and tag delivery targets such as `phone`, `pc`, `mobile`, or `desktop`.
+- **Keep the privacy boundary:** the shell hook reports timing and state transitions, not what you typed or what the command produced.
 
 ## Quick start
 
-The guided setup site is available at:
+The fastest path is the mobile-friendly guided setup:
 
-```text
-https://kinghacker9000.github.io/shellbell/
-```
+<p align="center">
+  <a href="https://kinghacker9000.github.io/shellbell/"><strong>Open the Shellbell setup site →</strong></a>
+</p>
 
 ### 1. Self-host the relay
 
-Deploy the relay and PWA on a Linux host with HTTPS. See [Deploying on a Linux VPS](docs/DEPLOY_VPS.md).
+Use the inline **Own the relay** wizard on the setup site, or follow [Deploying Shellbell on a Linux VPS](docs/DEPLOY_VPS.md). The recommended deployment keeps the relay bound to loopback and exposes it only through HTTPS.
 
 ### 2. Install the verified CLI
 
@@ -38,7 +70,7 @@ curl -fsSL https://raw.githubusercontent.com/KingHacker9000/shellbell/main/insta
   | sh -s -- --shell bash
 ```
 
-Replace `bash` with `zsh` or `fish` as needed. The installer detects Linux x86-64 or ARM64, downloads the latest stable archive, verifies it against the release `SHA256SUMS`, installs to `~/.local/bin`, and can safely replace an older CLI binary.
+Replace `bash` with `zsh` or `fish` as needed. The installer detects Linux x86-64 or ARM64, downloads the latest stable archive, verifies it against the release `SHA256SUMS`, installs to `~/.local/bin`, and validates the binary before replacing an older installation.
 
 Build from source instead:
 
@@ -154,6 +186,8 @@ See [Relay backup and restore](docs/BACKUP_RESTORE.md) and [Safe diagnostics](do
 
 Shell hooks send small, timeout-bounded messages over a same-user Unix socket. Network delivery happens only in the local daemon. The relay receives an event ID, an optional notification message, and receiver tags.
 
+The product contract explicitly excludes command text, command output, exit codes, environment variables, working directories, process lists, and inferred command success or failure.
+
 See:
 
 - [Security policy](SECURITY.md)
@@ -164,7 +198,7 @@ See:
 
 ## Documentation
 
-- [Guided setup site](https://kinghacker9000.github.io/shellbell/)
+- [Guided setup and self-hosting](https://kinghacker9000.github.io/shellbell/)
 - [Linux and WSL installation](docs/LINUX_WSL.md)
 - [Raspberry Pi 5 setup](docs/PI5.md)
 - [Shell integrations](docs/SHELL_INTEGRATIONS.md)
@@ -177,10 +211,11 @@ See:
 - [Local development](docs/LOCAL_DEVELOPMENT.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
+- [AI-readable project index](https://kinghacker9000.github.io/shellbell/llms.txt)
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Privacy boundaries are part of the product contract and changes that collect command contents, output, environment, or inferred outcomes will not be accepted without an explicit redesign and security review.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Privacy boundaries are part of the product contract; changes that collect command contents, output, environment, or inferred outcomes require an explicit redesign and security review.
 
 ## License
 
