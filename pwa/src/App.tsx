@@ -3,11 +3,12 @@ import { ApiClientError, api } from './api'
 import type { NotificationState, Pairing, Receiver, Ring, Source } from './types'
 
 type View = 'rings' | 'sources' | 'receivers' | 'settings'
-type AuthState = 'loading' | 'bootstrap' | 'login' | 'authenticated' | 'expired'
+type AuthState = 'loading' | 'setup' | 'login' | 'reset' | 'authenticated' | 'expired'
 
 export default function App() {
   const initialView = new URLSearchParams(location.search).get('view') as View | null
   const [auth, setAuth] = useState<AuthState>('loading')
+  const [bootstrapRequired, setBootstrapRequired] = useState(false)
   const [view, setView] = useState<View>(['rings', 'sources', 'receivers', 'settings'].includes(initialView ?? '') ? initialView! : 'rings')
   const [offline, setOffline] = useState(!navigator.onLine)
   const [error, setError] = useState('')
@@ -22,13 +23,20 @@ export default function App() {
     window.addEventListener('online', online); window.addEventListener('offline', offlineEvent)
     return () => { window.removeEventListener('online', online); window.removeEventListener('offline', offlineEvent) }
   }, [])
-  useEffect(() => { api.bootstrapStatus().then(({ bootstrap_required }) => { if (bootstrap_required) setAuth('bootstrap'); else api.session().then(() => setAuth('authenticated')).catch(() => setAuth('login')) }).catch(handleError) }, [handleError])
+  useEffect(() => {
+    api.bootstrapStatus().then(({ bootstrap_required, password_required }) => {
+      setBootstrapRequired(bootstrap_required)
+      if (bootstrap_required || password_required) { setAuth('setup'); return }
+      api.session().then(() => setAuth('authenticated')).catch(() => setAuth('login'))
+    }).catch(handleError)
+  }, [handleError])
 
   function navigate(next: View) { setView(next); history.replaceState(null, '', `/?view=${next}`) }
 
   if (auth === 'loading') return <Centered title="Loading Shellbell…" detail="Connecting to the private relay." />
-  if (auth === 'bootstrap') return <TokenScreen title="Bootstrap owner" detail="Enter the one-time owner bootstrap token from the relay data directory." button="Create owner session" onSubmit={(token) => api.bootstrap(token).then(() => setAuth('authenticated')).catch(handleError)} error={error} />
-  if (auth === 'login' || auth === 'expired') return <TokenScreen title={auth === 'expired' ? 'Owner session expired' : 'Owner sign in'} detail="Enter the owner bootstrap token to create a new revocable session." button="Sign in" onSubmit={(token) => api.login(token).then(() => setAuth('authenticated')).catch(handleError)} error={error} />
+  if (auth === 'setup') return <OwnerSetupScreen title={bootstrapRequired ? 'Bootstrap owner' : 'Set owner password'} detail={bootstrapRequired ? 'Enter the one-time bootstrap token and choose the password you will use for normal sign-in.' : 'Shellbell was upgraded. Enter the bootstrap token once to replace token sign-in with an owner password.'} button="Set owner password" onSubmit={(token, password) => api.setOwnerPassword(token, password).then(() => { setError(''); setAuth('authenticated') }).catch(handleError)} error={error} />
+  if (auth === 'reset') return <OwnerSetupScreen title="Reset owner password" detail="Use the high-entropy bootstrap token as a recovery key. Resetting the password revokes existing owner sessions." button="Reset password" onSubmit={(token, password) => api.setOwnerPassword(token, password, true).then(() => { setError(''); setAuth('authenticated') }).catch(handleError)} onCancel={() => { setError(''); setAuth('login') }} error={error} />
+  if (auth === 'login' || auth === 'expired') return <PasswordScreen title={auth === 'expired' ? 'Owner session expired' : 'Owner sign in'} detail="Enter your owner password. The bootstrap token is only needed for setup or recovery." button="Sign in" onSubmit={(password) => api.login(password).then(() => { setError(''); setAuth('authenticated') }).catch(handleError)} onReset={() => { setError(''); setAuth('reset') }} error={error} />
 
   return <div className="app">
     <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><span className="privacy">Private terminal notifications</span></header>
@@ -41,9 +49,15 @@ export default function App() {
 
 function Centered({ title, detail }: { title: string; detail: string }) { return <div className="center"><div className="card"><h1>{title}</h1><p>{detail}</p></div></div> }
 
-function TokenScreen({ title, detail, button, onSubmit, error }: { title: string; detail: string; button: string; onSubmit: (token: string) => void; error: string }) {
-  const [token, setToken] = useState(''); const submit = (event: FormEvent) => { event.preventDefault(); onSubmit(token); setToken('') }
-  return <div className="center"><form className="card auth" onSubmit={submit}><span className="eyebrow">Private owner access</span><h1>{title}</h1><p>{detail}</p>{error && <div className="inline-error" role="alert">{error}</div>}<label>Bootstrap token<input type="password" autoComplete="current-password" required minLength={32} value={token} onChange={(event) => setToken(event.target.value)} /></label><button type="submit">{button}</button><small>The token stays in this request and is never written to browser storage.</small></form></div>
+function OwnerSetupScreen({ title, detail, button, onSubmit, onCancel, error }: { title: string; detail: string; button: string; onSubmit: (token: string, password: string) => void; onCancel?: () => void; error: string }) {
+  const [token, setToken] = useState(''); const [password, setPassword] = useState(''); const [confirm, setConfirm] = useState(''); const [localError, setLocalError] = useState('')
+  const submit = (event: FormEvent) => { event.preventDefault(); if (password !== confirm) { setLocalError('Passwords do not match.'); return }; setLocalError(''); onSubmit(token, password) }
+  return <div className="center"><form className="card auth" onSubmit={submit}><span className="eyebrow">Private owner access</span><h1>{title}</h1><p>{detail}</p>{(error || localError) && <div className="inline-error" role="alert">{localError || error}</div>}<label>Bootstrap token<input type="password" autoComplete="off" required minLength={32} value={token} onChange={(event) => setToken(event.target.value)} /></label><label>Owner password<input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} /></label><label>Confirm password<input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={confirm} onChange={(event) => setConfirm(event.target.value)} /></label><button type="submit">{button}</button>{onCancel && <button type="button" className="secondary" onClick={onCancel}>Back to sign in</button>}<small>The bootstrap token stays in this request and is never written to browser storage. Normal sign-in uses only your password.</small></form></div>
+}
+
+function PasswordScreen({ title, detail, button, onSubmit, onReset, error }: { title: string; detail: string; button: string; onSubmit: (password: string) => void; onReset: () => void; error: string }) {
+  const [password, setPassword] = useState(''); const submit = (event: FormEvent) => { event.preventDefault(); onSubmit(password); setPassword('') }
+  return <div className="center"><form className="card auth" onSubmit={submit}><span className="eyebrow">Private owner access</span><h1>{title}</h1><p>{detail}</p>{error && <div className="inline-error" role="alert">{error}</div>}<label>Owner password<input type="password" autoComplete="current-password" required minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} /></label><button type="submit">{button}</button><button type="button" className="secondary" onClick={onReset}>Use bootstrap token to reset password</button></form></div>
 }
 
 function Section({ title, detail, children }: { title: string; detail: string; children: React.ReactNode }) { return <section><div className="section-title"><div><h1>{title}</h1><p>{detail}</p></div></div>{children}</section> }
