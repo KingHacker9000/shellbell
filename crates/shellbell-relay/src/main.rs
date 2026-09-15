@@ -29,6 +29,7 @@ const PASSWORD_MIN_CHARS: usize = 12;
 const PASSWORD_MAX_CHARS: usize = 128;
 const OWNER_ATTEMPT_LIMIT: u32 = 10;
 const OWNER_ATTEMPT_WINDOW: Duration = Duration::from_secs(5 * 60);
+const OWNER_PASSWORD_SETTING: &str = "owner_password_hash";
 
 #[derive(Clone)]
 struct OwnerPasswordState {
@@ -145,19 +146,30 @@ async fn owner_password_middleware(
     let method = request.method().clone();
 
     if path == "/api/owner/bootstrap/status" && method == Method::GET {
-        let row: Result<(Option<String>, Option<String>), _> = sqlx::query_as(
-            "SELECT bootstrapped_at,password_hash FROM owner_state WHERE singleton=1",
+        let bootstrapped_at: Option<String> = match sqlx::query_scalar(
+            "SELECT bootstrapped_at FROM owner_state WHERE singleton=1",
         )
         .fetch_one(&state.pool)
-        .await;
-        return match row {
-            Ok((bootstrapped_at, password_hash)) => Json(OwnerBootstrapStatus {
-                bootstrap_required: bootstrapped_at.is_none(),
-                password_required: password_hash.is_none(),
-            })
-            .into_response(),
-            Err(error) => database_error(error),
+        .await
+        {
+            Ok(value) => value,
+            Err(error) => return database_error(error),
         };
+        let password_hash: Option<String> = match sqlx::query_scalar(
+            "SELECT value FROM settings WHERE key=?",
+        )
+        .bind(OWNER_PASSWORD_SETTING)
+        .fetch_optional(&state.pool)
+        .await
+        {
+            Ok(value) => value,
+            Err(error) => return database_error(error),
+        };
+        return Json(OwnerBootstrapStatus {
+            bootstrap_required: bootstrapped_at.is_none(),
+            password_required: password_hash.is_none(),
+        })
+        .into_response();
     }
 
     if path == "/api/owner/bootstrap" && method == Method::POST {
@@ -182,13 +194,23 @@ async fn owner_password_middleware(
         if let Err(message) = validate_owner_password(&input.password) {
             return api_error(StatusCode::BAD_REQUEST, "validation_error", message);
         }
-        let password_hash = hash_password(&input.password);
-        let row: Result<(Option<String>, Option<String>), _> = sqlx::query_as(
-            "SELECT bootstrapped_at,password_hash FROM owner_state WHERE singleton=1",
+
+        let bootstrapped_at: Option<String> = match sqlx::query_scalar(
+            "SELECT bootstrapped_at FROM owner_state WHERE singleton=1",
         )
         .fetch_one(&state.pool)
-        .await;
-        let (bootstrapped_at, existing_password_hash) = match row {
+        .await
+        {
+            Ok(value) => value,
+            Err(error) => return database_error(error),
+        };
+        let existing_password_hash: Option<String> = match sqlx::query_scalar(
+            "SELECT value FROM settings WHERE key=?",
+        )
+        .bind(OWNER_PASSWORD_SETTING)
+        .fetch_optional(&state.pool)
+        .await
+        {
             Ok(value) => value,
             Err(error) => return database_error(error),
         };
@@ -199,30 +221,42 @@ async fn owner_password_middleware(
                 "owner password is already configured",
             );
         }
+
         let now = Utc::now();
-        let update = if bootstrapped_at.is_none() {
-            sqlx::query(
-                "UPDATE owner_state SET bootstrapped_at=?,password_hash=? WHERE singleton=1",
+        let mut tx = match state.pool.begin().await {
+            Ok(value) => value,
+            Err(error) => return database_error(error),
+        };
+        if bootstrapped_at.is_none()
+            && let Err(error) = sqlx::query(
+                "UPDATE owner_state SET bootstrapped_at=? WHERE singleton=1 AND bootstrapped_at IS NULL",
             )
             .bind(now)
-            .bind(password_hash)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await
-        } else {
-            sqlx::query("UPDATE owner_state SET password_hash=? WHERE singleton=1")
-                .bind(password_hash)
-                .execute(&state.pool)
-                .await
-        };
-        if let Err(error) = update {
+        {
+            return database_error(error);
+        }
+        let password_hash = hash_password(&input.password);
+        if let Err(error) = sqlx::query(
+            "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        )
+        .bind(OWNER_PASSWORD_SETTING)
+        .bind(password_hash)
+        .execute(&mut *tx)
+        .await
+        {
             return database_error(error);
         }
         if let Err(error) =
             sqlx::query("UPDATE owner_sessions SET revoked_at=? WHERE revoked_at IS NULL")
                 .bind(now)
-                .execute(&state.pool)
+                .execute(&mut *tx)
                 .await
         {
+            return database_error(error);
+        }
+        if let Err(error) = tx.commit().await {
             return database_error(error);
         }
         return match issue_owner_session(&state).await {
@@ -244,8 +278,9 @@ async fn owner_password_middleware(
             );
         }
         let stored_hash: Option<String> =
-            match sqlx::query_scalar("SELECT password_hash FROM owner_state WHERE singleton=1")
-                .fetch_one(&state.pool)
+            match sqlx::query_scalar("SELECT value FROM settings WHERE key=?")
+                .bind(OWNER_PASSWORD_SETTING)
+                .fetch_optional(&state.pool)
                 .await
             {
                 Ok(value) => value,
@@ -320,7 +355,11 @@ async fn issue_owner_session(state: &OwnerPasswordState) -> Result<Response, Res
         .execute(&state.pool)
         .await
         .map_err(database_error)?;
-    let secure = if state.secure_cookies { "; Secure" } else { "" };
+    let secure = if state.secure_cookies {
+        "; Secure"
+    } else {
+        ""
+    };
     let max_age = state.session_ttl.num_seconds();
     let mut headers = HeaderMap::new();
     headers.append(
