@@ -1,8 +1,4 @@
 use anyhow::{Context, bail};
-use argon2::{
-    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
-    password_hash::SaltString,
-};
 use axum::{
     Json,
     body::to_bytes,
@@ -13,7 +9,7 @@ use axum::{
 };
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use shellbell_core::{hash_secret, random_token, verify_secret};
+use shellbell_core::{hash_password, hash_secret, random_token, verify_password, verify_secret};
 use shellbell_protocol::{ApiError, SessionResponse};
 use shellbell_relay::{RelayConfig, build_app, open_database, push::VapidPushDelivery};
 use sqlx::SqlitePool;
@@ -182,10 +178,7 @@ async fn owner_password_middleware(
         if let Err(message) = validate_owner_password(&input.password) {
             return api_error(StatusCode::BAD_REQUEST, "validation_error", message);
         }
-        let password_hash = match hash_owner_password(&input.password) {
-            Ok(value) => value,
-            Err(response) => return response,
-        };
+        let password_hash = hash_password(&input.password);
         let row: Result<(Option<String>, Option<String>), _> = sqlx::query_as(
             "SELECT bootstrapped_at,password_hash FROM owner_state WHERE singleton=1",
         )
@@ -263,11 +256,7 @@ async fn owner_password_middleware(
                 "set an owner password with the bootstrap token first",
             );
         };
-        let valid = match verify_owner_password(&input.password, &stored_hash) {
-            Ok(value) => value,
-            Err(response) => return response,
-        };
-        if !valid {
+        if !verify_password(&input.password, &stored_hash) {
             return api_error(StatusCode::UNAUTHORIZED, "unauthorized", "authentication required");
         }
         return match issue_owner_session(&state).await {
@@ -301,23 +290,6 @@ fn validate_owner_password(password: &str) -> Result<(), &'static str> {
         return Err("owner password must not contain control characters");
     }
     Ok(())
-}
-
-fn hash_owner_password(password: &str) -> Result<String, Response> {
-    let salt = SaltString::encode_b64(Uuid::new_v4().as_bytes())
-        .map_err(|_| internal_error("could not generate password salt"))?;
-    Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map(|value| value.to_string())
-        .map_err(|_| internal_error("could not hash owner password"))
-}
-
-fn verify_owner_password(password: &str, encoded: &str) -> Result<bool, Response> {
-    let parsed = PasswordHash::new(encoded)
-        .map_err(|_| internal_error("stored owner password hash is invalid"))?;
-    Ok(Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok())
 }
 
 async fn issue_owner_session(state: &OwnerPasswordState) -> Result<Response, Response> {
