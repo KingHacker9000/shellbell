@@ -21,7 +21,7 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 - Owner sessions now default to 30 days and can be configured from 1 through 90 days.
 - Existing relays upgrade in place without resetting paired sources, receivers, history, or source credentials.
 - Owner-password verifiers use salted PBKDF2-HMAC-SHA256 storage in the private settings table.
-- The public Compose example now pulls the verified `v0.1.1` multi-architecture image and defaults to secure HTTPS mode.
+- The public Compose example now pulls the verified `v0.1.2` multi-architecture image and defaults to secure HTTPS mode.
 - The full VPS deployment guide now mirrors the guided setup while retaining detailed operational and rollback notes.
 - Official checkout, Node, artifact, and Pages actions now use Node 24-compatible major versions.
 - The GitHub Pages layout is mobile-first, with overflow-safe command blocks, touch-sized controls, responsive navigation, and narrow-screen typography.
