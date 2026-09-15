@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, for example v0.1.2"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,6 +17,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RELEASE_TAG: ${{ inputs.version || github.ref_name }}
 
 jobs:
   cli-archives:
@@ -40,7 +47,7 @@ jobs:
         with:
           key: release-ubuntu-22.04-${{ matrix.target }}
       - name: Verify release version
-        run: bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
+        run: bash scripts/check-release-version.sh "$RELEASE_TAG"
       - name: Build CLI
         shell: bash
         run: |
@@ -79,7 +86,7 @@ jobs:
       - name: Package archive
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${RELEASE_TAG#v}"
           bash scripts/package-release.sh \
             "target/${{ matrix.target }}/release/shellbell" \
             "${{ matrix.platform }}" \
@@ -103,7 +110,7 @@ jobs:
         with:
           node-version: 24
       - name: Verify release version
-        run: bash scripts/check-release-version.sh "$GITHUB_REF_NAME"
+        run: bash scripts/check-release-version.sh "$RELEASE_TAG"
       - id: image
         name: Resolve lowercase image name
         shell: bash
@@ -120,9 +127,9 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=${{ github.ref_name }}
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=raw,value=latest,enable=${{ !contains(env.RELEASE_TAG, '-') }}
           labels: |
             org.opencontainers.image.title=Shellbell
             org.opencontainers.image.description=Private self-hosted terminal attention notifications
@@ -160,7 +167,7 @@ jobs:
       - name: Build release notes
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${RELEASE_TAG#v}"
           base_version="${version%%-*}"
           section="$version"
           if ! grep -Fq "## [$section]" CHANGELOG.md; then
@@ -178,7 +185,7 @@ jobs:
               found { print }
             ' CHANGELOG.md
             echo
-            echo "Container image: \`ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME\`"
+            echo "Container image: \`ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_TAG\`"
           } > release-notes.md
       - name: Publish release
         env:
@@ -186,15 +193,19 @@ jobs:
         shell: bash
         run: |
           args=(
-            "$GITHUB_REF_NAME"
+            "$RELEASE_TAG"
             dist/*.tar.gz
             dist/install.sh
             dist/SHA256SUMS
-            --verify-tag
-            --title "Shellbell $GITHUB_REF_NAME"
+            --title "Shellbell $RELEASE_TAG"
             --notes-file release-notes.md
           )
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            args+=(--target "$GITHUB_SHA")
+          else
+            args+=(--verify-tag)
+          fi
+          if [[ "$RELEASE_TAG" == *-* ]]; then
             args+=(--prerelease)
           else
             args+=(--latest)

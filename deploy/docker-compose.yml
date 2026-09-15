@@ -1,9 +1,10 @@
 services:
   shellbell:
-    image: ghcr.io/kinghacker9000/shellbell:v0.1.1
+    image: ghcr.io/kinghacker9000/shellbell:v0.1.2
     restart: unless-stopped
     environment:
       SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ${SHELLBELL_OWNER_BOOTSTRAP_TOKEN:?set in .env}
+      SHELLBELL_OWNER_SESSION_DAYS: ${SHELLBELL_OWNER_SESSION_DAYS:-30}
       SHELLBELL_VAPID_PUBLIC_KEY: ${SHELLBELL_VAPID_PUBLIC_KEY:?set in .env}
       SHELLBELL_VAPID_PRIVATE_KEY: ${SHELLBELL_VAPID_PRIVATE_KEY:?set in .env}
       SHELLBELL_VAPID_SUBJECT: ${SHELLBELL_VAPID_SUBJECT:-mailto:owner@localhost}

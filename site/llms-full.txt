@@ -4,11 +4,13 @@
 
 Shellbell is an open-source, private, self-hosted terminal notification system. It is designed for people who leave long-running commands in a terminal and want a notification when the terminal is ready for attention.
 
-Shellbell supports three workflows:
+Shellbell supports three terminal workflows:
 
 1. Manual rings with `shellbell ring`.
 2. One-shot monitoring with `shellbell once`.
 3. Continuous opt-in monitoring with `shellbell on`.
+
+It can also be used as a lightweight notification transport for coding-agent lifecycle hooks such as Claude Code and Codex without exposing a model-visible MCP tool.
 
 The current stable release is v0.1.1. Shellbell is licensed under the MIT License.
 
@@ -32,6 +34,12 @@ The main data path is:
 
 ```text
 interactive shell -> same-user local daemon -> private relay -> Web Push -> tagged browser receivers
+```
+
+Coding-agent lifecycle hooks can enter the same path through a local manual ring:
+
+```text
+Claude Code / Codex -> local hook -> shellbell ring -> local daemon -> relay -> phone
 ```
 
 Components:
@@ -91,6 +99,14 @@ shellbell pair https://shellbell.example.com
 
 The CLI displays a short-lived pairing code. The owner approves the code in the Shellbell PWA. The source credential is then stored locally with private permissions.
 
+## Owner access
+
+The bootstrap token is a high-entropy setup and recovery credential. It is not intended to be typed for normal owner sign-in.
+
+On a fresh relay, open the PWA and enter the bootstrap token once while choosing an owner password. Existing relays upgrading from the bootstrap-token-only flow show **Set owner password** once; sources, receivers, ring history, and source credentials are preserved.
+
+Normal owner sign-in uses only the owner password. Owner passwords are stored as salted PBKDF2-HMAC-SHA256 verifiers in the private relay settings table. Owner sessions default to 30 days and can be configured from 1 to 90 days with `SHELLBELL_OWNER_SESSION_DAYS`. Password recovery requires the bootstrap token and revokes existing owner sessions.
+
 ## Receiver registration
 
 Open the private Shellbell web application, install the PWA, allow notifications, and register each browser as a receiver. Receivers can be tagged with values such as:
@@ -146,6 +162,26 @@ Session label:
 shellbell name "Training run"
 ```
 
+## Coding-agent hooks
+
+For Claude Code and Codex, prefer native lifecycle hooks that call a local helper wrapping `shellbell ring`. The hook process runs outside model context, so routine permission/waiting notifications do not consume model tokens or require an MCP tool schema.
+
+Canonical guide:
+
+https://github.com/KingHacker9000/shellbell/blob/main/docs/AGENT_HOOKS.md
+
+A shared helper can be as small as:
+
+```sh
+#!/usr/bin/env bash
+reason="${*:-Agent needs attention}"
+host="$(hostname -s 2>/dev/null || hostname)"
+project="$(basename "$PWD")"
+"$HOME/.local/bin/shellbell" ring "${reason} — ${project}@${host}" --to phone >/dev/null 2>&1 || true
+```
+
+Useful native events include Claude Code `Notification` events for permission/waiting/elicitation states and Codex `PermissionRequest`. Only add a short model instruction for semantic questions that cannot be represented by native hooks.
+
 ## Monitoring state model
 
 The automatic monitoring state model is:
@@ -194,7 +230,11 @@ Required private environment values include:
 - `SHELLBELL_VAPID_PRIVATE_KEY`;
 - `SHELLBELL_VAPID_SUBJECT`.
 
-Never commit or publish the owner bootstrap token, VAPID private key, source tokens, Push subscription endpoints, or encryption keys.
+Optional owner-session configuration:
+
+- `SHELLBELL_OWNER_SESSION_DAYS` (default 30, allowed 1–90).
+
+Never commit or publish the owner bootstrap token, owner password, VAPID private key, source tokens, Push subscription endpoints, or encryption keys.
 
 ## Operations
 
@@ -224,6 +264,7 @@ Operational documentation:
 - Local IPC: https://github.com/KingHacker9000/shellbell/blob/main/docs/LOCAL_IPC.md
 - Configuration: https://github.com/KingHacker9000/shellbell/blob/main/docs/CONFIGURATION.md
 - Shell integrations: https://github.com/KingHacker9000/shellbell/blob/main/docs/SHELL_INTEGRATIONS.md
+- Coding-agent hooks: https://github.com/KingHacker9000/shellbell/blob/main/docs/AGENT_HOOKS.md
 - Local development: https://github.com/KingHacker9000/shellbell/blob/main/docs/LOCAL_DEVELOPMENT.md
 - Release process: https://github.com/KingHacker9000/shellbell/blob/main/docs/RELEASING.md
 

@@ -28,9 +28,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  bootstrapStatus: () => request<{ bootstrap_required: boolean }>('/api/owner/bootstrap/status'),
-  bootstrap: (bootstrap_token: string) => request('/api/owner/bootstrap', { method: 'POST', body: JSON.stringify({ bootstrap_token }) }),
-  login: (bootstrap_token: string) => request('/api/owner/session', { method: 'POST', body: JSON.stringify({ bootstrap_token }) }),
+  bootstrapStatus: () => request<{ bootstrap_required: boolean; password_required: boolean }>('/api/owner/bootstrap/status'),
+  setOwnerPassword: (bootstrap_token: string, password: string, reset = false) => request('/api/owner/bootstrap', { method: 'POST', body: JSON.stringify({ bootstrap_token, password, reset }) }),
+  login: (password: string) => request('/api/owner/session', { method: 'POST', body: JSON.stringify({ password }) }),
   session: () => request('/api/owner/session'),
   logout: () => request('/api/owner/logout', { method: 'POST' }),
   pairings: () => request<{ pairings: Pairing[] }>('/api/pairings'),

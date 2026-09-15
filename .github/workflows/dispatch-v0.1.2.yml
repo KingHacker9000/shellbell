@@ -1,0 +1,21 @@
+name: Dispatch v0.1.2
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/workflows/dispatch-v0.1.2.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch v0.1.2 release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f version=v0.1.2

@@ -60,7 +60,7 @@ curl -fsSLo compose.yaml \
 The public Compose definition uses the released multi-architecture image:
 
 ```text
-ghcr.io/kinghacker9000/shellbell:v0.1.1
+ghcr.io/kinghacker9000/shellbell:v0.1.2
 ```
 
 For stronger production pinning, replace the release tag with the verified OCI
@@ -80,6 +80,7 @@ VAPID_PUBLIC_KEY="$(printf '%s' "$VAPID_JSON" | jq -r '.publicKey')"
 VAPID_PRIVATE_KEY="$(printf '%s' "$VAPID_JSON" | jq -r '.privateKey')"
 cat > .env <<EOF
 SHELLBELL_OWNER_BOOTSTRAP_TOKEN=$OWNER_TOKEN
+SHELLBELL_OWNER_SESSION_DAYS=30
 SHELLBELL_VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
 SHELLBELL_VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY
 SHELLBELL_VAPID_SUBJECT=mailto:owner@example.com
@@ -92,8 +93,12 @@ chmod 600 .env
 unset OWNER_TOKEN VAPID_JSON VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY
 ```
 
-Never commit or publish the bootstrap token, VAPID private key, source tokens,
-Push subscription endpoints, or encryption keys.
+`SHELLBELL_OWNER_SESSION_DAYS` accepts 1 through 90 and defaults to 30. The
+bootstrap token is a high-entropy setup/recovery key; it is not the password used
+for everyday owner sign-in.
+
+Never commit or publish the bootstrap token, owner password, VAPID private key,
+source tokens, Push subscription endpoints, or encryption keys.
 
 ## Validate and start
 
@@ -141,10 +146,11 @@ sudo systemctl reload caddy
 curl -fsS https://shellbell.example.com/health
 ```
 
-## Claim the owner session
+## Set the owner password
 
 Open the HTTPS relay URL in a browser. Retrieve the bootstrap token locally on
-the host, paste it into the owner sign-in form, and do not share it:
+the host and enter it once together with a memorable owner password of at least
+12 characters:
 
 ```sh
 sudo awk -F= \
@@ -152,9 +158,25 @@ sudo awk -F= \
   /opt/stacks/shellbell/.env
 ```
 
+The relay stores only a salted PBKDF2-HMAC-SHA256 verifier for the owner
+password. Normal owner sign-in uses the password, while the bootstrap token is
+kept only for setup and password recovery. The token is never written to browser
+storage.
+
 After signing in, install the PWA, allow notifications, and register the first
-receiver. Owner sessions are revocable and the bootstrap token is not stored in
-browser storage.
+receiver.
+
+### Upgrading an existing relay
+
+Existing databases migrate in place. Sources, receivers, ring history, and source
+credentials are preserved. On the first PWA visit after upgrading from the
+bootstrap-token-only owner flow, Shellbell shows **Set owner password**. Enter the
+existing bootstrap token once and choose the new password.
+
+Setting or resetting the owner password revokes existing owner sessions and
+immediately issues a fresh session in the browser performing the operation.
+Password reset remains available from the owner sign-in screen and requires the
+bootstrap token.
 
 ## Safe upgrades
 

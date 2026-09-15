@@ -1,6 +1,6 @@
 # Security, privacy, and threat model
 
-Shellbell protects the owner session, source send capability, browser Push subscription, local shell-session metadata, retry queue, and both SQLite databases. Threats include internet scanning, stolen credentials, CSRF, replay, malformed local/HTTP input, cross-user socket access, symlink/file clobbering, accidental command capture, and notification flooding after an outage.
+Shellbell protects the owner session, owner password verifier, bootstrap recovery secret, source send capability, browser Push subscription, local shell-session metadata, retry queue, and both SQLite databases. Threats include internet scanning, stolen credentials, CSRF, replay, malformed local/HTTP input, cross-user socket access, symlink/file clobbering, accidental command capture, password guessing, and notification flooding after an outage.
 
 ## Privacy boundary
 
@@ -26,16 +26,19 @@ Transient network, `429`, and `5xx` failures use exponential delay from five sec
 
 ## Relay controls
 
-- Credentials use OS randomness; only source/session hashes are stored by the relay and verified in constant time.
-- Owner cookies are HttpOnly, `SameSite=Strict`, expiring, `Secure` outside explicit localhost mode, and mutations require CSRF matching.
+- Bootstrap, source, and session credentials use OS randomness. Source/session secrets are stored only as SHA-256 verifiers and compared in constant time.
+- The bootstrap token remains a high-entropy setup/recovery credential and is not the normal owner sign-in credential.
+- Human owner passwords are salted and stored as PBKDF2-HMAC-SHA256 verifiers with 600,000 iterations. The plaintext password is never stored.
+- Owner password and recovery attempts are rate-limited in memory. Password reset requires the bootstrap token and revokes all existing owner sessions before issuing a new session.
+- Owner cookies are HttpOnly, `SameSite=Strict`, expiring, `Secure` outside explicit localhost mode, and mutations require CSRF matching. The default owner session lifetime is 30 days and may be configured from 1 to 90 days.
 - Pairing decisions and credential issuance are transactional and short-lived.
 - HTTP bodies/fields and request rates are bounded. Source capabilities are send-only and revocable.
-- Logs omit authorization, request bodies, Push endpoints, raw credentials, and local session metadata.
+- Logs omit authorization, request bodies, passwords, Push endpoints, raw credentials, and local session metadata.
 - SQLite uses foreign keys, WAL, constraints, and indexed idempotency. Relay `/data` must remain owner-only and backups are sensitive.
 
 ## Residual risks and limitations
 
-Shell startup files execute code and remain part of the user's trust boundary. A malicious same-user process can access same-user files/socket and use the source send capability; Unix UID separation is not a sandbox between processes of one account. A ring may occur while text is being typed because Shellbell deliberately avoids Readline, ZLE, and Fish editor interception. Background processes and interactive applications holding foreground control are not completion signals. The relay in-memory rate limiter resets on relay restart.
+Shell startup files execute code and remain part of the user's trust boundary. A malicious same-user process can access same-user files/socket and use the source send capability; Unix UID separation is not a sandbox between processes of one account. A ring may occur while text is being typed because Shellbell deliberately avoids Readline, ZLE, and Fish editor interception. Background processes and interactive applications holding foreground control are not completion signals. Relay rate limiters are in-memory and reset when the relay restarts. The bootstrap token remains a powerful recovery secret and must be protected like a recovery key.
 
 ## Pre-commit review
 
