@@ -6,14 +6,21 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-15
+
 ### Added
 
+- Memorable owner-password sign-in with the bootstrap token reserved for first-time setup and password recovery.
+- Claude Code and Codex lifecycle-hook guidance for zero-model-context Shellbell notifications.
 - Inline guided self-hosting setup on the GitHub Pages site, including secret generation, Compose startup, HTTPS configuration, owner sign-in, and end-to-end validation.
 - Canonical metadata, structured software data, an XML sitemap, crawler directives, and `llms.txt`/`llms-full.txt` discovery files for search engines and AI agents.
 - A reusable Shellbell visual mark for the Pages site and repository README.
 
 ### Changed
 
+- Owner sessions now default to 30 days and can be configured from 1 through 90 days.
+- Existing relays upgrade in place without resetting paired sources, receivers, history, or source credentials.
+- Owner-password verifiers use salted PBKDF2-HMAC-SHA256 storage in the private settings table.
 - The public Compose example now pulls the verified `v0.1.1` multi-architecture image and defaults to secure HTTPS mode.
 - The full VPS deployment guide now mirrors the guided setup while retaining detailed operational and rollback notes.
 - Official checkout, Node, artifact, and Pages actions now use Node 24-compatible major versions.
@@ -102,7 +109,8 @@ First public release candidate.
 - Simplified public documentation for first-time users.
 - Reframed internal milestone notes as a public roadmap and operations guide.
 
-[Unreleased]: https://github.com/KingHacker9000/shellbell/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/KingHacker9000/shellbell/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.2
 [0.1.1]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.1
 [0.1.0]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.0
 [0.1.0-rc.1]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.0-rc.1

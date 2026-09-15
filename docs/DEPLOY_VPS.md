@@ -60,7 +60,7 @@ curl -fsSLo compose.yaml \
 The public Compose definition uses the released multi-architecture image:
 
 ```text
-ghcr.io/kinghacker9000/shellbell:v0.1.1
+ghcr.io/kinghacker9000/shellbell:v0.1.2
 ```
 
 For stronger production pinning, replace the release tag with the verified OCI
