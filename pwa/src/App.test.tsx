@@ -21,22 +21,36 @@ beforeEach(() => {
 })
 
 describe('owner states', () => {
-  it('shows bootstrap required and submits the token', async () => {
-    const fetchMock = routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: true }, 'POST /api/owner/bootstrap': { authenticated: true } }); vi.stubGlobal('fetch', fetchMock)
+  it('bootstraps with the recovery token and a new owner password', async () => {
+    const fetchMock = routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: true, password_required: true }, 'POST /api/owner/bootstrap': { authenticated: true } }); vi.stubGlobal('fetch', fetchMock)
     render(<App />); expect(await screen.findByRole('heading', { name: 'Bootstrap owner' })).toBeInTheDocument()
-    await userEvent.type(screen.getByLabelText('Bootstrap token'), 'x'.repeat(32)); await userEvent.click(screen.getByRole('button', { name: 'Create owner session' }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/owner/bootstrap', expect.objectContaining({ method: 'POST' })))
+    await userEvent.type(screen.getByLabelText('Bootstrap token'), 'x'.repeat(32)); await userEvent.type(screen.getByLabelText('Owner password'), 'correct horse battery staple'); await userEvent.type(screen.getByLabelText('Confirm password'), 'correct horse battery staple'); await userEvent.click(screen.getByRole('button', { name: 'Set owner password' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/owner/bootstrap', expect.objectContaining({ method: 'POST', body: expect.stringContaining('correct horse battery staple') })))
   })
 
-  it('shows an expired session state after an owner request returns 401', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => String(input).includes('bootstrap/status') ? json({ bootstrap_required: false }) : json({ error: { code: 'unauthorized', message: 'authentication required' } }, 401)); vi.stubGlobal('fetch', fetchMock)
-    render(<App />); expect(await screen.findByRole('heading', { name: 'Owner sign in' })).toBeInTheDocument()
+  it('requires a one-time password setup after upgrading an existing owner', async () => {
+    vi.stubGlobal('fetch', routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: true } })); render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Set owner password' })).toBeInTheDocument()
+    expect(screen.getByText(/Shellbell was upgraded/)).toBeInTheDocument()
+  })
+
+  it('signs in with the owner password instead of the bootstrap token', async () => {
+    const fetchMock = routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { error: { code: 'unauthorized', message: 'authentication required' } }, 'POST /api/owner/session': { authenticated: true } })
+    fetchMock.mockImplementationOnce(() => json({ bootstrap_required: false, password_required: false })).mockImplementationOnce(() => json({ error: { code: 'unauthorized', message: 'authentication required' } }, 401)).mockImplementationOnce(() => json({ authenticated: true }))
+    vi.stubGlobal('fetch', fetchMock); render(<App />); expect(await screen.findByRole('heading', { name: 'Owner sign in' })).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Owner password'), 'correct horse battery staple'); await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/owner/session', expect.objectContaining({ method: 'POST', body: expect.stringContaining('correct horse battery staple') })))
+  })
+
+  it('offers bootstrap-token recovery from owner sign in', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => String(input).includes('bootstrap/status') ? json({ bootstrap_required: false, password_required: false }) : json({ error: { code: 'unauthorized', message: 'authentication required' } }, 401)); vi.stubGlobal('fetch', fetchMock)
+    render(<App />); expect(await screen.findByRole('heading', { name: 'Owner sign in' })).toBeInTheDocument(); await userEvent.click(screen.getByRole('button', { name: /Use bootstrap token/ })); expect(await screen.findByRole('heading', { name: 'Reset owner password' })).toBeInTheDocument()
   })
 })
 
 describe('authenticated application', () => {
   function authenticated(extra: Record<string, unknown> = {}) {
-    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false }, '/api/owner/session': { authenticated: true }, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
+    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
   }
 
   it('shows empty and populated ring history', async () => {
