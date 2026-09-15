@@ -173,7 +173,11 @@ async fn owner_password_middleware(
             );
         }
         if !verify_secret(&input.bootstrap_token, &state.bootstrap_token_hash) {
-            return api_error(StatusCode::UNAUTHORIZED, "unauthorized", "authentication required");
+            return api_error(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "authentication required",
+            );
         }
         if let Err(message) = validate_owner_password(&input.password) {
             return api_error(StatusCode::BAD_REQUEST, "validation_error", message);
@@ -213,12 +217,11 @@ async fn owner_password_middleware(
         if let Err(error) = update {
             return database_error(error);
         }
-        if let Err(error) = sqlx::query(
-            "UPDATE owner_sessions SET revoked_at=? WHERE revoked_at IS NULL",
-        )
-        .bind(now)
-        .execute(&state.pool)
-        .await
+        if let Err(error) =
+            sqlx::query("UPDATE owner_sessions SET revoked_at=? WHERE revoked_at IS NULL")
+                .bind(now)
+                .execute(&state.pool)
+                .await
         {
             return database_error(error);
         }
@@ -240,15 +243,14 @@ async fn owner_password_middleware(
                 "too many attempts; retry later",
             );
         }
-        let stored_hash: Option<String> = match sqlx::query_scalar(
-            "SELECT password_hash FROM owner_state WHERE singleton=1",
-        )
-        .fetch_one(&state.pool)
-        .await
-        {
-            Ok(value) => value,
-            Err(error) => return database_error(error),
-        };
+        let stored_hash: Option<String> =
+            match sqlx::query_scalar("SELECT password_hash FROM owner_state WHERE singleton=1")
+                .fetch_one(&state.pool)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => return database_error(error),
+            };
         let Some(stored_hash) = stored_hash else {
             return api_error(
                 StatusCode::CONFLICT,
@@ -257,7 +259,11 @@ async fn owner_password_middleware(
             );
         };
         if !verify_password(&input.password, &stored_hash) {
-            return api_error(StatusCode::UNAUTHORIZED, "unauthorized", "authentication required");
+            return api_error(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "authentication required",
+            );
         }
         return match issue_owner_session(&state).await {
             Ok(response) => response,
@@ -270,11 +276,20 @@ async fn owner_password_middleware(
 
 async fn read_json<T: DeserializeOwned>(request: Request) -> Result<(HeaderMap, T), Response> {
     let (parts, body) = request.into_parts();
-    let bytes = to_bytes(body, 16 * 1024)
-        .await
-        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "validation_error", "invalid request body"))?;
-    let value = serde_json::from_slice(&bytes)
-        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "validation_error", "invalid JSON body"))?;
+    let bytes = to_bytes(body, 16 * 1024).await.map_err(|_| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "validation_error",
+            "invalid request body",
+        )
+    })?;
+    let value = serde_json::from_slice(&bytes).map_err(|_| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "validation_error",
+            "invalid JSON body",
+        )
+    })?;
     Ok((parts.headers, value))
 }
 
