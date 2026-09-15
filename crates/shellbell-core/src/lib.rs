@@ -73,10 +73,16 @@ pub fn verify_password(password: &str, encoded: &str) -> bool {
     if !(100_000..=1_000_000).contains(&iterations) {
         return false;
     }
-    let Some(salt) = parts.next().and_then(|value| URL_SAFE_NO_PAD.decode(value).ok()) else {
+    let Some(salt) = parts
+        .next()
+        .and_then(|value| URL_SAFE_NO_PAD.decode(value).ok())
+    else {
         return false;
     };
-    let Some(expected) = parts.next().and_then(|value| URL_SAFE_NO_PAD.decode(value).ok()) else {
+    let Some(expected) = parts
+        .next()
+        .and_then(|value| URL_SAFE_NO_PAD.decode(value).ok())
+    else {
         return false;
     };
     if parts.next().is_some() || salt.len() < 8 || expected.len() != SHA256_BYTES {
