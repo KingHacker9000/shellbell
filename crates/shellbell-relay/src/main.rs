@@ -146,25 +146,23 @@ async fn owner_password_middleware(
     let method = request.method().clone();
 
     if path == "/api/owner/bootstrap/status" && method == Method::GET {
-        let bootstrapped_at: Option<String> = match sqlx::query_scalar(
-            "SELECT bootstrapped_at FROM owner_state WHERE singleton=1",
-        )
-        .fetch_one(&state.pool)
-        .await
-        {
-            Ok(value) => value,
-            Err(error) => return database_error(error),
-        };
-        let password_hash: Option<String> = match sqlx::query_scalar(
-            "SELECT value FROM settings WHERE key=?",
-        )
-        .bind(OWNER_PASSWORD_SETTING)
-        .fetch_optional(&state.pool)
-        .await
-        {
-            Ok(value) => value,
-            Err(error) => return database_error(error),
-        };
+        let bootstrapped_at: Option<String> =
+            match sqlx::query_scalar("SELECT bootstrapped_at FROM owner_state WHERE singleton=1")
+                .fetch_one(&state.pool)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => return database_error(error),
+            };
+        let password_hash: Option<String> =
+            match sqlx::query_scalar("SELECT value FROM settings WHERE key=?")
+                .bind(OWNER_PASSWORD_SETTING)
+                .fetch_optional(&state.pool)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => return database_error(error),
+            };
         return Json(OwnerBootstrapStatus {
             bootstrap_required: bootstrapped_at.is_none(),
             password_required: password_hash.is_none(),
@@ -195,25 +193,23 @@ async fn owner_password_middleware(
             return api_error(StatusCode::BAD_REQUEST, "validation_error", message);
         }
 
-        let bootstrapped_at: Option<String> = match sqlx::query_scalar(
-            "SELECT bootstrapped_at FROM owner_state WHERE singleton=1",
-        )
-        .fetch_one(&state.pool)
-        .await
-        {
-            Ok(value) => value,
-            Err(error) => return database_error(error),
-        };
-        let existing_password_hash: Option<String> = match sqlx::query_scalar(
-            "SELECT value FROM settings WHERE key=?",
-        )
-        .bind(OWNER_PASSWORD_SETTING)
-        .fetch_optional(&state.pool)
-        .await
-        {
-            Ok(value) => value,
-            Err(error) => return database_error(error),
-        };
+        let bootstrapped_at: Option<String> =
+            match sqlx::query_scalar("SELECT bootstrapped_at FROM owner_state WHERE singleton=1")
+                .fetch_one(&state.pool)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => return database_error(error),
+            };
+        let existing_password_hash: Option<String> =
+            match sqlx::query_scalar("SELECT value FROM settings WHERE key=?")
+                .bind(OWNER_PASSWORD_SETTING)
+                .fetch_optional(&state.pool)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => return database_error(error),
+            };
         if bootstrapped_at.is_some() && existing_password_hash.is_some() && !input.reset {
             return api_error(
                 StatusCode::CONFLICT,
@@ -355,11 +351,7 @@ async fn issue_owner_session(state: &OwnerPasswordState) -> Result<Response, Res
         .execute(&state.pool)
         .await
         .map_err(database_error)?;
-    let secure = if state.secure_cookies {
-        "; Secure"
-    } else {
-        ""
-    };
+    let secure = if state.secure_cookies { "; Secure" } else { "" };
     let max_age = state.session_ttl.num_seconds();
     let mut headers = HeaderMap::new();
     headers.append(
