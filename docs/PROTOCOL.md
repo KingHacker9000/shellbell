@@ -22,7 +22,21 @@ Common codes are `validation_error` (400), `unauthorized` (401), `forbidden` (40
 - Owner endpoints require the `sb_session` cookie; mutations also require the readable `sb_csrf` value in `X-CSRF-Token`.
 - Source endpoints require `Authorization: Bearer <source-token>`. A source can only submit rings and fetch itself.
 
-Raw source/session tokens are not stored by the relay. Source revocation is immediate. The per-user daemon reads the separately protected local source credential only in its delivery worker.
+Raw source/session tokens and the plaintext owner password are not stored by the relay. Source revocation is immediate. The per-user daemon reads the separately protected local source credential only in its delivery worker.
+
+The owner bootstrap token is a high-entropy setup/recovery credential, not the normal sign-in credential. Initial setup or an upgrade from the bootstrap-token-only flow sends:
+
+```json
+{"bootstrap_token":"<recovery-secret>","password":"<owner-password>"}
+```
+
+A password reset sends the same body with `"reset":true`; resetting revokes existing owner sessions. Normal sign-in sends only:
+
+```json
+{"password":"<owner-password>"}
+```
+
+Owner passwords are 12–128 characters with no control characters. The relay stores only a salted PBKDF2-HMAC-SHA256 verifier in its private settings table. The default owner session lifetime is 30 days and is configurable from 1–90 days.
 
 ## Validation limits
 
@@ -31,6 +45,7 @@ Raw source/session tokens are not stored by the relay. Source revocation is imme
 - Receiver targets: unique `phone`, `pc`, `mobile`, or `desktop`; an empty target list means all enabled receivers.
 - Push endpoint: HTTPS and at most 2048 bytes; Push keys are required and at most 512 bytes each.
 - Pairing expires after 10 minutes. Ring rate is 120/minute/source in the relay process.
+- Owner password and bootstrap/recovery attempts are rate-limited in the relay process.
 - Ring history `limit` defaults to 100 and is clamped to 1–200.
 
 ## Endpoints
@@ -38,9 +53,9 @@ Raw source/session tokens are not stored by the relay. Source revocation is imme
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `/health` | Public | relay health/version |
-| `GET` | `/api/owner/bootstrap/status` | Public | initial owner state |
-| `POST` | `/api/owner/bootstrap` | Public | bootstrap owner and issue cookies |
-| `POST`, `GET` | `/api/owner/session` | Public / Owner | sign in / validate session |
+| `GET` | `/api/owner/bootstrap/status` | Public | report bootstrap/password setup state |
+| `POST` | `/api/owner/bootstrap` | Public + bootstrap token | initial password setup or bootstrap-token password recovery; issue cookies |
+| `POST`, `GET` | `/api/owner/session` | Password / Owner | sign in with owner password / validate session |
 | `POST` | `/api/owner/logout` | Owner + CSRF | revoke owner session |
 | `POST`, `GET` | `/api/pairings` | Public / Owner | create / list pairing requests |
 | `GET` | `/api/pairings/{id}` | Public, unguessable ID | poll pairing |
@@ -54,6 +69,14 @@ Raw source/session tokens are not stored by the relay. Source revocation is imme
 | `POST` | `/api/rings` | Source | idempotent ring submission |
 | `GET` | `/api/rings?limit=100` | Owner | newest ring history |
 | `GET`, `PUT` | `/api/settings` | Owner / Owner + CSRF | retention and VAPID public key |
+
+`GET /api/owner/bootstrap/status` returns both setup dimensions so existing relays can upgrade without database resets:
+
+```json
+{"bootstrap_required":false,"password_required":true}
+```
+
+That example means the owner was already bootstrapped by an older release but has not yet set an owner password.
 
 ## Ring idempotency
 
