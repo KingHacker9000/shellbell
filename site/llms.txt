@@ -19,6 +19,7 @@ Shellbell is open-source software for Linux x86-64, Linux ARM64, Raspberry Pi OS
 - [Self-hosting the relay](https://github.com/KingHacker9000/shellbell/blob/main/docs/DEPLOY_VPS.md)
 - [Configuration](https://github.com/KingHacker9000/shellbell/blob/main/docs/CONFIGURATION.md)
 - [Shell integrations](https://github.com/KingHacker9000/shellbell/blob/main/docs/SHELL_INTEGRATIONS.md)
+- [Claude Code and Codex hooks](https://github.com/KingHacker9000/shellbell/blob/main/docs/AGENT_HOOKS.md): Low-token lifecycle-hook integration that calls `shellbell ring` outside model context.
 - [Backup and restore](https://github.com/KingHacker9000/shellbell/blob/main/docs/BACKUP_RESTORE.md)
 - [Diagnostics](https://github.com/KingHacker9000/shellbell/blob/main/docs/DIAGNOSTICS.md)
 - [Operations and troubleshooting](https://github.com/KingHacker9000/shellbell/blob/main/docs/OPERATIONS.md)
@@ -45,6 +46,7 @@ Shellbell is open-source software for Linux x86-64, Linux ARM64, Raspberry Pi OS
 - Stable release: v0.1.1
 - License: MIT
 - Relay model: private, single-owner, self-hosted
+- Owner authentication: high-entropy bootstrap token for setup/recovery; memorable password for normal sign-in; revocable long-lived owner session
 - Client platforms: Linux x86-64, Linux ARM64, Raspberry Pi OS 64-bit, WSL 2
 - Shells: Bash, Zsh, Fish
 - Delivery: Web Push to tagged browser receivers
