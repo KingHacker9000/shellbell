@@ -42,7 +42,7 @@ Owner passwords are 12–128 characters with no control characters. The relay st
 
 - Names and session labels: trimmed, 1–64 Unicode scalar values, no controls.
 - Ring message: optional, trimmed, at most 240 Unicode scalar values; newline/tab allowed, other controls rejected.
-- Receiver targets: unique `phone`, `pc`, `mobile`, or `desktop`; an empty target list means all enabled receivers.
+- Receiver targets: unique `phone`, `pc`, `mobile`, `desktop`, or `desk`; an empty target list means all enabled receivers.
 - Push endpoint: HTTPS and at most 2048 bytes; Push keys are required and at most 512 bytes each.
 - Pairing expires after 10 minutes. Ring rate is 120/minute/source in the relay process.
 - Owner password and bootstrap/recovery attempts are rate-limited in the relay process.
@@ -65,7 +65,11 @@ Owner passwords are 12–128 characters with no control characters. The relay st
 | `GET` | `/api/sources` | Owner | list sources |
 | `PATCH`, `DELETE` | `/api/sources/{id}` | Owner + CSRF | rename / revoke source |
 | `POST`, `GET` | `/api/receivers` | Owner + CSRF / Owner | register / list receivers |
-| `PATCH`, `DELETE` | `/api/receivers/{id}` | Owner + CSRF | update / revoke receiver |
+| `PATCH`, `DELETE` | `/api/receivers/{id}` | Owner + CSRF | update / revoke browser Push receiver |
+| `POST`, `GET` | `/api/pull-receivers` | Owner + CSRF / Owner | create / list pull receivers; creation returns the receiver token once |
+| `PATCH`, `DELETE` | `/api/pull-receivers/{id}` | Owner + CSRF | update / immediately revoke pull receiver |
+| `GET` | `/api/receiver-feed?after=<cursor>&limit=50` | Pull receiver | read receiver-scoped durable ring feed |
+| `POST` | `/api/receiver-feed/ack` | Pull receiver | advance durable acknowledgement cursor |
 | `POST` | `/api/rings` | Source | idempotent ring submission |
 | `GET` | `/api/rings?limit=100` | Owner | newest ring history |
 | `GET`, `PUT` | `/api/settings` | Owner / Owner + CSRF | retention and VAPID public key |
@@ -89,3 +93,23 @@ A new ring returns `202`:
 The relay commits the ring and matched delivery rows under `UNIQUE(source_id,event_id)` before Push attempts. Repeating the exact event ID returns `200` with `duplicate:true`, the original accepted time/count, and no new history or Push. This is the only request retried by the local daemon.
 
 `RingView` remains exactly `event_id`, `source_id`, `source_name`, optional `message`, `created_at`, and `target_tags`. See [LOCAL_IPC.md](LOCAL_IPC.md) for the local-only protocol.
+
+## Pull receiver feed
+
+Trusted non-browser displays can use a dedicated pull receiver instead of an owner session or a browser Push subscription. The owner creates the receiver in the PWA and receives one high-entropy `sb_recv_...` credential exactly once. The relay stores only its verifier.
+
+A new pull receiver starts at the relay's current ring cursor, so registering a display does not replay older history. `GET /api/receiver-feed` returns only rings newer than the receiver's durable acknowledgement cursor (or an explicit later `after` cursor) whose target tags match that receiver. The response shape is:
+
+```json
+{"rings":[{"event_id":"uuid","source_id":"uuid","source_name":"workstation","message":"ready","created_at":"2026-01-01T00:00:00Z","target_tags":["desk"]}],"cursor":"42"}
+```
+
+The client advances the durable cursor with:
+
+```json
+{"cursor":"42"}
+```
+
+to `POST /api/receiver-feed/ack`. Cursor advancement is monotonic. Page size defaults to 50 and is capped at 100; feed and acknowledgement calls are rate-limited. Revoking the pull receiver immediately invalidates its credential.
+
+The pull feed deliberately exposes no additional terminal telemetry beyond the existing relay ring fields. In particular it has no command text, output, exit status, working directory, environment, process data, duration, or inferred command result.
