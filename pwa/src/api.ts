@@ -1,4 +1,4 @@
-import type { Pairing, Receiver, Ring, Settings, Source } from './types'
+import type { Pairing, PullReceiver, PullReceiverCreated, Receiver, Ring, Settings, Source } from './types'
 
 export class ApiClientError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message) }
@@ -44,6 +44,10 @@ export const api = {
   registerReceiver: (body: object) => request<Receiver>('/api/receivers', { method: 'POST', body: JSON.stringify(body) }),
   updateReceiver: (id: string, body: object) => request<Receiver>(`/api/receivers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   revokeReceiver: (id: string) => request(`/api/receivers/${id}`, { method: 'DELETE' }),
+  pullReceivers: () => request<{ receivers: PullReceiver[] }>('/api/pull-receivers'),
+  createPullReceiver: (body: object) => request<PullReceiverCreated>('/api/pull-receivers', { method: 'POST', body: JSON.stringify(body) }),
+  updatePullReceiver: (id: string, body: object) => request<PullReceiver>(`/api/pull-receivers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  revokePullReceiver: (id: string) => request(`/api/pull-receivers/${id}`, { method: 'DELETE' }),
   settings: () => request<Settings>('/api/settings'),
   updateSettings: (history_retention_days: number) => request<Settings>('/api/settings', { method: 'PUT', body: JSON.stringify({ history_retention_days }) }),
 }
