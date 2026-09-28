@@ -46,7 +46,7 @@ Long-running builds, deployments, downloads, model training, and remote jobs oft
 
 - **Own the infrastructure:** run the relay and SQLite database on your server.
 - **Own the clients:** pair Linux, WSL 2, and Raspberry Pi machines with revocable source credentials.
-- **Own the receivers:** install the PWA on your phone or desktop and tag delivery targets such as `phone`, `pc`, `mobile`, or `desktop`.
+- **Own the receivers:** install the PWA on your phone or desktop and tag delivery targets such as `phone`, `pc`, `mobile`, `desktop`, or `desk`.
 - **Keep the privacy boundary:** the shell hook reports timing and state transitions, not what you typed or what the command produced.
 
 ## Quick start
