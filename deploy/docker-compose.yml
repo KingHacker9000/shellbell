@@ -1,6 +1,6 @@
 services:
   shellbell:
-    image: ghcr.io/kinghacker9000/shellbell:v0.1.2
+    image: ghcr.io/kinghacker9000/shellbell:v0.1.3
     restart: unless-stopped
     environment:
       SHELLBELL_OWNER_BOOTSTRAP_TOKEN: ${SHELLBELL_OWNER_BOOTSTRAP_TOKEN:?set in .env}
