@@ -754,14 +754,20 @@ async fn create_pull_receiver(
     let token = random_token("sb_recv_");
     let id = Uuid::new_v4();
     let now = Utc::now();
+    let initial_cursor: i64 =
+        sqlx::query_scalar("SELECT COALESCE(MAX(id),0) FROM rings")
+            .fetch_one(&state.pool)
+            .await
+            .map_err(AppError::db)?;
 
     sqlx::query(
-        "INSERT INTO pull_receivers(id,name,tags_json,token_hash,enabled,acked_ring_id,created_at,updated_at) VALUES(?,?,?,?,1,0,?,?)",
+        "INSERT INTO pull_receivers(id,name,tags_json,token_hash,enabled,acked_ring_id,created_at,updated_at) VALUES(?,?,?,?,1,?,?,?)",
     )
     .bind(id.to_string())
     .bind(&name)
     .bind(serde_json::to_string(&tags).map_err(|_| AppError::bad("invalid tags"))?)
     .bind(hash_secret(&token))
+    .bind(initial_cursor)
     .bind(now)
     .bind(now)
     .execute(&state.pool)
