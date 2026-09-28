@@ -708,7 +708,7 @@ async fn pull_receiver_auth(
         .ok_or_else(AppError::unauthorized)?;
 
     let rows = sqlx::query(
-        "SELECT id,tags_json,token_hash,acked_ring_id FROM pull_receivers WHERE enabled=1 AND revoked_at IS NULL",
+        "SELECT id,tags_json,token_hash,acked_ring_id FROM pull_receivers WHERE token_hash IS NOT NULL AND enabled=1 AND revoked_at IS NULL",
     )
     .fetch_all(&state.pool)
     .await
@@ -870,7 +870,7 @@ async fn revoke_pull_receiver(
     owner_auth(&state, &headers, true).await?;
 
     let result = sqlx::query(
-        "UPDATE pull_receivers SET revoked_at=?,enabled=0,token_hash='',updated_at=? WHERE id=? AND revoked_at IS NULL",
+        "UPDATE pull_receivers SET revoked_at=?,enabled=0,token_hash=NULL,updated_at=? WHERE id=? AND revoked_at IS NULL",
     )
     .bind(Utc::now())
     .bind(Utc::now())
