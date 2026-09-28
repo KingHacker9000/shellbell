@@ -8,7 +8,7 @@ Shellbell combines a privacy-bounded per-user activity monitor with a private no
 - `shellbell-core` owns random token/code generation, hashing, and constant-time credential verification.
 - `shellbell-local` owns strict TOML settings, typed local IPC, the activity state machine, durable local SQLite state/queue, UID-checked daemon, managed shell hooks, systemd unit generation, and WSL detection.
 - `shellbell-cli` owns pairing and all public user commands. The same executable exposes hidden `__daemon`, `__hook`, and `__session-id` modes; no second binary is installed.
-- `shellbell-relay` owns Axum routes, owner/source authentication, relay SQLite, receiver routing, idempotent ring acceptance, Web Push, and PWA delivery.
+- `shellbell-relay` owns Axum routes, owner/source/pull-receiver authentication, relay SQLite, receiver routing, idempotent ring acceptance, Web Push, and durable receiver-scoped pull delivery.
 - `pwa` is the React/TypeScript/Vite owner interface.
 
 ## Local data flow
@@ -56,3 +56,5 @@ Sessions are removed when their shell PID no longer exists or their last local b
 ## Relay trust path
 
 Owner cookies, CSRF, send-only source credentials, transactional pairing, tagged receiver selection, relay idempotency, and PWA behavior share one privacy boundary. The relay `RingRequest` contains only an event ID, calm notification message, and target tags. Active duration and shell metadata are intentionally not transmitted.
+
+Trusted displays may be provisioned as pull receivers. Each gets a dedicated revocable bearer capability whose durable cursor is stored by the relay. The feed applies the same receiver-tag selection rules as Web Push and returns only the existing ring fields; it does not widen the privacy boundary or require an owner session on the display.
