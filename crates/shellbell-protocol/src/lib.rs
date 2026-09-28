@@ -11,7 +11,7 @@ pub const NAME_MAX: usize = 64;
 pub const ENDPOINT_MAX: usize = 2048;
 pub const KEY_MAX: usize = 512;
 pub const PAIRING_CODE_LEN: usize = 9;
-pub const ALLOWED_TAGS: [&str; 4] = ["phone", "pc", "mobile", "desktop"];
+pub const ALLOWED_TAGS: [&str; 5] = ["phone", "pc", "mobile", "desktop", "desk"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApiError {
@@ -153,6 +153,54 @@ pub struct ReceiverView {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReceiverListResponse {
     pub receivers: Vec<ReceiverView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PullReceiverCreateRequest {
+    pub name: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PullReceiverView {
+    pub id: Uuid,
+    pub name: String,
+    pub tags: Vec<String>,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PullReceiverCreatedResponse {
+    pub receiver: PullReceiverView,
+    pub receiver_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PullReceiverListResponse {
+    pub receivers: Vec<PullReceiverView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReceiverFeedRing {
+    pub event_id: Uuid,
+    pub source_id: Uuid,
+    pub source_name: String,
+    pub message: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub target_tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReceiverFeedResponse {
+    pub rings: Vec<ReceiverFeedRing>,
+    pub cursor: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReceiverFeedAckRequest {
+    pub cursor: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
