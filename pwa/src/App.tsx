@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ApiClientError, api } from './api'
-import type { NotificationState, Pairing, Receiver, Ring, Source } from './types'
+import type { NotificationState, Pairing, PullReceiver, Receiver, Ring, Source } from './types'
 
 type View = 'rings' | 'sources' | 'receivers' | 'settings'
 type AuthState = 'loading' | 'setup' | 'login' | 'reset' | 'authenticated' | 'expired'
@@ -107,14 +107,39 @@ function ReceiverRegistration({ onRegistered, onError }: { onRegistered: () => v
     } catch (error) { onError(error) } finally { setBusy(false) }
   }
   const toggle = (tag: string) => setTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag])
-  return <div className="card registration"><h2>Register this browser</h2><p>{permission === 'default' ? 'Notification permission has not been requested.' : permission === 'granted' ? 'Notification permission is granted.' : permission === 'denied' ? 'Notification permission is denied. Change it in browser settings.' : 'Push notifications are unsupported.'}</p><label>Receiver name<input value={name} maxLength={64} onChange={(event) => setName(event.target.value)} /></label><fieldset><legend>Tags</legend>{['phone', 'pc', 'mobile', 'desktop'].map((tag) => <label className="check" key={tag}><input type="checkbox" checked={tags.includes(tag)} onChange={() => toggle(tag)} />{tag}</label>)}</fieldset><button onClick={register} disabled={busy || permission === 'denied' || permission === 'unsupported'}>{busy ? 'Registering…' : permission === 'granted' ? 'Register receiver' : 'Allow notifications and register'}</button></div>
+  return <div className="card registration"><h2>Register this browser</h2><p>{permission === 'default' ? 'Notification permission has not been requested.' : permission === 'granted' ? 'Notification permission is granted.' : permission === 'denied' ? 'Notification permission is denied. Change it in browser settings.' : 'Push notifications are unsupported.'}</p><label>Receiver name<input value={name} maxLength={64} onChange={(event) => setName(event.target.value)} /></label><fieldset><legend>Tags</legend>{['phone', 'pc', 'mobile', 'desktop', 'desk'].map((tag) => <label className="check" key={tag}><input type="checkbox" checked={tags.includes(tag)} onChange={() => toggle(tag)} />{tag}</label>)}</fieldset><button onClick={register} disabled={busy || permission === 'denied' || permission === 'unsupported'}>{busy ? 'Registering…' : permission === 'granted' ? 'Register receiver' : 'Allow notifications and register'}</button></div>
+}
+
+function PullReceiverRegistration({ onRegistered, onError }: { onRegistered: () => void; onError: (error: unknown) => void }) {
+  const [name, setName] = useState('Companion Cube')
+  const [tags, setTags] = useState<string[]>(['desk'])
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState(false)
+  const toggle = (tag: string) => setTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag])
+  const register = async () => {
+    setBusy(true)
+    try {
+      const created = await api.createPullReceiver({ name, tags })
+      setToken(created.receiver_token)
+      onRegistered()
+    } catch (error) { onError(error) } finally { setBusy(false) }
+  }
+  return <div className="card registration"><h2>Register a desk/API receiver</h2><p>Creates a read-only pull credential for trusted displays. The token is shown once; Shellbell stores only its verifier.</p><label>Receiver name<input value={name} maxLength={64} onChange={(event) => setName(event.target.value)} /></label><fieldset><legend>Tags</legend>{['phone', 'pc', 'mobile', 'desktop', 'desk'].map((tag) => <label className="check" key={tag}><input type="checkbox" checked={tags.includes(tag)} onChange={() => toggle(tag)} />{tag}</label>)}</fieldset><button onClick={register} disabled={busy}>{busy ? 'Creating…' : 'Create receiver token'}</button>{token && <div><p><strong>Copy this token now. It will not be shown again.</strong></p><input readOnly value={token} onFocus={(event) => event.currentTarget.select()} /><button className="secondary" onClick={() => navigator.clipboard.writeText(token).catch(onError)}>Copy token</button></div>}</div>
+}
+
+function PullReceivers({ onError }: { onError: (error: unknown) => void }) {
+  const loader = useCallback(() => api.pullReceivers(), [])
+  const { data, refresh } = useLoad(loader, onError)
+  const rename = (receiver: PullReceiver) => { const name = prompt('Receiver name', receiver.name); if (name) api.updatePullReceiver(receiver.id, { name }).then(refresh).catch(onError) }
+  const revoke = (receiver: PullReceiver) => { if (confirm(`Revoke ${receiver.name}?`)) api.revokePullReceiver(receiver.id).then(refresh).catch(onError) }
+  return <div><PullReceiverRegistration onRegistered={refresh} onError={onError} /><h2>Desk/API receivers</h2>{!data ? <Loading /> : data.receivers.length === 0 ? <Empty>No pull receivers.</Empty> : <div className="list">{data.receivers.map((receiver) => <article className="list-item" key={receiver.id}><div><strong>{receiver.name}</strong><p>{receiver.enabled ? 'Enabled' : 'Disabled'} · {receiver.tags.length ? receiver.tags.join(', ') : 'all rings'}</p></div><div className="actions"><button className="secondary" onClick={() => api.updatePullReceiver(receiver.id, { enabled: !receiver.enabled }).then(refresh).catch(onError)}>{receiver.enabled ? 'Disable' : 'Enable'}</button><button className="secondary" onClick={() => rename(receiver)}>Rename</button><button className="danger" onClick={() => revoke(receiver)}>Revoke</button></div></article>)}</div>}</div>
 }
 
 function Receivers({ onError }: { onError: (error: unknown) => void }) {
   const loader = useCallback(() => api.receivers(), []); const { data, refresh } = useLoad(loader, onError)
   const rename = (receiver: Receiver) => { const name = prompt('Receiver name', receiver.name); if (name) api.updateReceiver(receiver.id, { name }).then(refresh).catch(onError) }
   const revoke = (receiver: Receiver) => { if (confirm(`Revoke ${receiver.name}?`)) api.revokeReceiver(receiver.id).then(refresh).catch(onError) }
-  return <Section title="Receivers" detail="Register browsers and choose which target tags reach them."><ReceiverRegistration onRegistered={refresh} onError={onError} />{!data ? <Loading /> : data.receivers.length === 0 ? <Empty>No registered Push receivers.</Empty> : <div className="list">{data.receivers.map((receiver) => <article className="list-item" key={receiver.id}><div><strong>{receiver.name}</strong><p>{receiver.enabled ? 'Enabled' : 'Disabled'} · {receiver.tags.length ? receiver.tags.join(', ') : 'all rings'}</p></div><div className="actions"><button className="secondary" onClick={() => api.updateReceiver(receiver.id, { enabled: !receiver.enabled }).then(refresh).catch(onError)}>{receiver.enabled ? 'Disable' : 'Enable'}</button><button className="secondary" onClick={() => rename(receiver)}>Rename</button><button className="danger" onClick={() => revoke(receiver)}>Revoke</button></div></article>)}</div>}</Section>
+  return <Section title="Receivers" detail="Register browser Push receivers or read-only pull receivers for trusted displays."><ReceiverRegistration onRegistered={refresh} onError={onError} />{!data ? <Loading /> : data.receivers.length === 0 ? <Empty>No registered Push receivers.</Empty> : <div className="list">{data.receivers.map((receiver) => <article className="list-item" key={receiver.id}><div><strong>{receiver.name}</strong><p>{receiver.enabled ? 'Enabled' : 'Disabled'} · {receiver.tags.length ? receiver.tags.join(', ') : 'all rings'}</p></div><div className="actions"><button className="secondary" onClick={() => api.updateReceiver(receiver.id, { enabled: !receiver.enabled }).then(refresh).catch(onError)}>{receiver.enabled ? 'Disable' : 'Enable'}</button><button className="secondary" onClick={() => rename(receiver)}>Rename</button><button className="danger" onClick={() => revoke(receiver)}>Revoke</button></div></article>)}</div>}<PullReceivers onError={onError} /></Section>
 }
 
 function SettingsView({ onError, onLogout }: { onError: (error: unknown) => void; onLogout: () => void }) {
