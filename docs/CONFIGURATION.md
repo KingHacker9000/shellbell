@@ -48,6 +48,7 @@ phone
 pc
 mobile
 desktop
+desk
 ```
 
 An empty target list means all enabled receivers. A receiver is selected when it contains at least one requested tag.
