@@ -26,13 +26,14 @@ Transient network, `429`, and `5xx` failures use exponential delay from five sec
 
 ## Relay controls
 
-- Bootstrap, source, and session credentials use OS randomness. Source/session secrets are stored only as SHA-256 verifiers and compared in constant time.
+- Bootstrap, source, session, and pull-receiver credentials use OS randomness. Source/session/pull-receiver secrets are stored only as verifiers and compared in constant time.
 - The bootstrap token remains a high-entropy setup/recovery credential and is not the normal owner sign-in credential.
 - Human owner passwords are salted and stored as PBKDF2-HMAC-SHA256 verifiers with 600,000 iterations. The plaintext password is never stored.
 - Owner password and recovery attempts are rate-limited in memory. Password reset requires the bootstrap token and revokes all existing owner sessions before issuing a new session.
 - Owner cookies are HttpOnly, `SameSite=Strict`, expiring, `Secure` outside explicit localhost mode, and mutations require CSRF matching. The default owner session lifetime is 30 days and may be configured from 1 to 90 days.
 - Pairing decisions and credential issuance are transactional and short-lived.
 - HTTP bodies/fields and request rates are bounded. Source capabilities are send-only and revocable.
+- Pull-receiver capabilities are read-only, tag-scoped, independently revocable, rate-limited, and start at the current relay cursor rather than replaying pre-registration history. Their feed is limited to the same privacy-bounded ring fields already retained by the relay.
 - Logs omit authorization, request bodies, passwords, Push endpoints, raw credentials, and local session metadata.
 - SQLite uses foreign keys, WAL, constraints, and indexed idempotency. Relay `/data` must remain owner-only and backups are sensitive.
 

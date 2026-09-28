@@ -50,7 +50,7 @@ describe('owner states', () => {
 
 describe('authenticated application', () => {
   function authenticated(extra: Record<string, unknown> = {}) {
-    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
+    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/pull-receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
   }
 
   it('shows empty and populated ring history', async () => {
@@ -83,6 +83,21 @@ describe('authenticated application', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/receivers', expect.objectContaining({ method: 'POST' })))
     expect(subscribe).toHaveBeenCalledWith(expect.objectContaining({ userVisibleOnly: true }))
     Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: originalWorker })
+  })
+
+  it('creates a one-time pull receiver token for a trusted display', async () => {
+    const fetchMock = authenticated({
+      'POST /api/pull-receivers': {
+        receiver: { id: 'desk-1', name: 'Companion Cube', tags: ['desk'], enabled: true, created_at: '2026-01-01T00:00:00Z' },
+        receiver_token: 'sb_recv_test-once',
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Receivers' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Create receiver token' }))
+    expect(await screen.findByDisplayValue('sb_recv_test-once')).toBeInTheDocument()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/pull-receivers', expect.objectContaining({ method: 'POST' })))
   })
 
   it('shows the offline state', async () => {

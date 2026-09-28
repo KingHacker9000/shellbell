@@ -114,7 +114,8 @@ Open the private Shellbell web application, install the PWA, allow notifications
 - phone;
 - pc;
 - mobile;
-- desktop.
+- desktop;
+- desk.
 
 Delivery commands can target one tag or `all`.
 
