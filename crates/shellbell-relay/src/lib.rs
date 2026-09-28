@@ -733,8 +733,7 @@ fn pull_receiver_view_from_row(
     row: &sqlx::sqlite::SqliteRow,
 ) -> Result<PullReceiverView, AppError> {
     Ok(PullReceiverView {
-        id: Uuid::parse_str(row.get("id"))
-            .map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
+        id: Uuid::parse_str(row.get("id")).map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
         name: row.get("name"),
         tags: serde_json::from_str(row.get("tags_json")).unwrap_or_default(),
         enabled: row.get::<i64, _>("enabled") != 0,
@@ -754,11 +753,10 @@ async fn create_pull_receiver(
     let token = random_token("sb_recv_");
     let id = Uuid::new_v4();
     let now = Utc::now();
-    let initial_cursor: i64 =
-        sqlx::query_scalar("SELECT COALESCE(MAX(id),0) FROM rings")
-            .fetch_one(&state.pool)
-            .await
-            .map_err(AppError::db)?;
+    let initial_cursor: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(id),0) FROM rings")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(AppError::db)?;
 
     sqlx::query(
         "INSERT INTO pull_receivers(id,name,tags_json,token_hash,enabled,acked_ring_id,created_at,updated_at) VALUES(?,?,?,?,1,?,?,?)",
@@ -847,17 +845,15 @@ async fn update_pull_receiver(
         .enabled
         .unwrap_or_else(|| row.get::<i64, _>("enabled") != 0);
 
-    sqlx::query(
-        "UPDATE pull_receivers SET name=?,tags_json=?,enabled=?,updated_at=? WHERE id=?",
-    )
-    .bind(&name)
-    .bind(serde_json::to_string(&tags).unwrap())
-    .bind(enabled)
-    .bind(Utc::now())
-    .bind(id.to_string())
-    .execute(&state.pool)
-    .await
-    .map_err(AppError::db)?;
+    sqlx::query("UPDATE pull_receivers SET name=?,tags_json=?,enabled=?,updated_at=? WHERE id=?")
+        .bind(&name)
+        .bind(serde_json::to_string(&tags).unwrap())
+        .bind(enabled)
+        .bind(Utc::now())
+        .bind(id.to_string())
+        .execute(&state.pool)
+        .await
+        .map_err(AppError::db)?;
 
     Ok(Json(PullReceiverView {
         id,
@@ -915,10 +911,7 @@ fn parse_cursor(value: Option<&str>) -> Result<Option<i64>, AppError> {
 }
 
 fn tags_match(receiver_tags: &[String], target_tags: &[String]) -> bool {
-    target_tags.is_empty()
-        || target_tags
-            .iter()
-            .any(|tag| receiver_tags.contains(tag))
+    target_tags.is_empty() || target_tags.iter().any(|tag| receiver_tags.contains(tag))
 }
 
 async fn receiver_feed(
@@ -1198,12 +1191,11 @@ async fn submit_ring(
         }
     }
 
-    let pull_receiver_rows = sqlx::query(
-        "SELECT tags_json FROM pull_receivers WHERE enabled=1 AND revoked_at IS NULL",
-    )
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(AppError::db)?;
+    let pull_receiver_rows =
+        sqlx::query("SELECT tags_json FROM pull_receivers WHERE enabled=1 AND revoked_at IS NULL")
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(AppError::db)?;
 
     let matched_pull_receivers = pull_receiver_rows
         .iter()
@@ -1958,7 +1950,10 @@ mod tests {
             harness
                 .app
                 .clone()
-                .oneshot(bearer(json_request("POST", "/api/rings", ignored), &source_token))
+                .oneshot(bearer(
+                    json_request("POST", "/api/rings", ignored),
+                    &source_token,
+                ))
                 .await
                 .unwrap(),
         )
@@ -1974,7 +1969,10 @@ mod tests {
             harness
                 .app
                 .clone()
-                .oneshot(bearer(json_request("POST", "/api/rings", &wanted), &source_token))
+                .oneshot(bearer(
+                    json_request("POST", "/api/rings", &wanted),
+                    &source_token,
+                ))
                 .await
                 .unwrap(),
         )
@@ -2034,15 +2032,17 @@ mod tests {
         let revoke = harness
             .app
             .clone()
-            .oneshot(harness.owner(
-                axum::http::Request::delete(format!(
-                    "/api/pull-receivers/{}",
-                    created.receiver.id
-                ))
-                .body(Body::empty())
-                .unwrap(),
-                true,
-            ))
+            .oneshot(
+                harness.owner(
+                    axum::http::Request::delete(format!(
+                        "/api/pull-receivers/{}",
+                        created.receiver.id
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+                    true,
+                ),
+            )
             .await
             .unwrap();
         assert_eq!(revoke.status(), StatusCode::NO_CONTENT);
