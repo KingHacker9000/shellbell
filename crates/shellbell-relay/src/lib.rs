@@ -203,6 +203,16 @@ pub async fn build_app(
             "/api/receivers/{id}",
             patch(update_receiver).delete(revoke_receiver),
         )
+        .route(
+            "/api/pull-receivers",
+            post(create_pull_receiver).get(list_pull_receivers),
+        )
+        .route(
+            "/api/pull-receivers/{id}",
+            patch(update_pull_receiver).delete(revoke_pull_receiver),
+        )
+        .route("/api/receiver-feed", get(receiver_feed))
+        .route("/api/receiver-feed/ack", post(ack_receiver_feed))
         .route("/api/rings", post(submit_ring).get(list_rings))
         .route("/api/settings", get(get_settings).put(update_settings))
         .layer(DefaultBodyLimit::max(16 * 1024))
@@ -680,6 +690,328 @@ async fn revoke_source(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Clone)]
+struct AuthenticatedPullReceiver {
+    id: Uuid,
+    tags: Vec<String>,
+    acked_ring_id: i64,
+}
+
+async fn pull_receiver_auth(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<AuthenticatedPullReceiver, AppError> {
+    let authorization = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or_else(AppError::unauthorized)?;
+
+    let rows = sqlx::query(
+        "SELECT id,tags_json,token_hash,acked_ring_id FROM pull_receivers WHERE enabled=1 AND revoked_at IS NULL",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    for row in rows {
+        let hash: String = row.get("token_hash");
+        if verify_secret(authorization, &hash) {
+            return Ok(AuthenticatedPullReceiver {
+                id: Uuid::parse_str(row.get("id"))
+                    .map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
+                tags: serde_json::from_str(row.get("tags_json")).unwrap_or_default(),
+                acked_ring_id: row.get("acked_ring_id"),
+            });
+        }
+    }
+
+    Err(AppError::unauthorized())
+}
+
+fn pull_receiver_view_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<PullReceiverView, AppError> {
+    Ok(PullReceiverView {
+        id: Uuid::parse_str(row.get("id"))
+            .map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
+        name: row.get("name"),
+        tags: serde_json::from_str(row.get("tags_json")).unwrap_or_default(),
+        enabled: row.get::<i64, _>("enabled") != 0,
+        created_at: row.get("created_at"),
+    })
+}
+
+async fn create_pull_receiver(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<PullReceiverCreateRequest>,
+) -> Result<(StatusCode, Json<PullReceiverCreatedResponse>), AppError> {
+    owner_auth(&state, &headers, true).await?;
+
+    let name = validate_name(&request.name).map_err(AppError::bad)?;
+    let tags = validate_tags(&request.tags).map_err(AppError::bad)?;
+    let token = random_token("sb_recv_");
+    let id = Uuid::new_v4();
+    let now = Utc::now();
+
+    sqlx::query(
+        "INSERT INTO pull_receivers(id,name,tags_json,token_hash,enabled,acked_ring_id,created_at,updated_at) VALUES(?,?,?,?,1,0,?,?)",
+    )
+    .bind(id.to_string())
+    .bind(&name)
+    .bind(serde_json::to_string(&tags).map_err(|_| AppError::bad("invalid tags"))?)
+    .bind(hash_secret(&token))
+    .bind(now)
+    .bind(now)
+    .execute(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(PullReceiverCreatedResponse {
+            receiver: PullReceiverView {
+                id,
+                name,
+                tags,
+                enabled: true,
+                created_at: now,
+            },
+            receiver_token: token,
+        }),
+    ))
+}
+
+async fn list_pull_receivers(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<PullReceiverListResponse>, AppError> {
+    owner_auth(&state, &headers, false).await?;
+
+    let rows = sqlx::query(
+        "SELECT id,name,tags_json,enabled,created_at FROM pull_receivers WHERE revoked_at IS NULL ORDER BY created_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    Ok(Json(PullReceiverListResponse {
+        receivers: rows
+            .iter()
+            .map(pull_receiver_view_from_row)
+            .collect::<Result<_, _>>()?,
+    }))
+}
+
+async fn update_pull_receiver(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(request): Json<ReceiverUpdateRequest>,
+) -> Result<Json<PullReceiverView>, AppError> {
+    owner_auth(&state, &headers, true).await?;
+
+    let row = sqlx::query(
+        "SELECT name,tags_json,enabled,created_at FROM pull_receivers WHERE id=? AND revoked_at IS NULL",
+    )
+    .bind(id.to_string())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(AppError::db)?
+    .ok_or_else(AppError::not_found)?;
+
+    let name = request
+        .name
+        .as_deref()
+        .map(validate_name)
+        .transpose()
+        .map_err(AppError::bad)?
+        .unwrap_or_else(|| row.get("name"));
+
+    let tags = request
+        .tags
+        .as_ref()
+        .map(|value| validate_tags(value))
+        .transpose()
+        .map_err(AppError::bad)?
+        .unwrap_or_else(|| serde_json::from_str(row.get("tags_json")).unwrap_or_default());
+
+    let enabled = request
+        .enabled
+        .unwrap_or_else(|| row.get::<i64, _>("enabled") != 0);
+
+    sqlx::query(
+        "UPDATE pull_receivers SET name=?,tags_json=?,enabled=?,updated_at=? WHERE id=?",
+    )
+    .bind(&name)
+    .bind(serde_json::to_string(&tags).unwrap())
+    .bind(enabled)
+    .bind(Utc::now())
+    .bind(id.to_string())
+    .execute(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    Ok(Json(PullReceiverView {
+        id,
+        name,
+        tags,
+        enabled,
+        created_at: row.get("created_at"),
+    }))
+}
+
+async fn revoke_pull_receiver(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    owner_auth(&state, &headers, true).await?;
+
+    let result = sqlx::query(
+        "UPDATE pull_receivers SET revoked_at=?,enabled=0,token_hash='',updated_at=? WHERE id=? AND revoked_at IS NULL",
+    )
+    .bind(Utc::now())
+    .bind(Utc::now())
+    .bind(id.to_string())
+    .execute(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found());
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct ReceiverFeedQuery {
+    after: Option<String>,
+    limit: Option<u32>,
+}
+
+fn parse_cursor(value: Option<&str>) -> Result<Option<i64>, AppError> {
+    value
+        .map(|raw| {
+            raw.parse::<i64>()
+                .map_err(|_| AppError::bad("invalid receiver feed cursor"))
+                .and_then(|cursor| {
+                    if cursor < 0 {
+                        Err(AppError::bad("invalid receiver feed cursor"))
+                    } else {
+                        Ok(cursor)
+                    }
+                })
+        })
+        .transpose()
+}
+
+fn tags_match(receiver_tags: &[String], target_tags: &[String]) -> bool {
+    target_tags.is_empty()
+        || target_tags
+            .iter()
+            .any(|tag| receiver_tags.contains(tag))
+}
+
+async fn receiver_feed(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ReceiverFeedQuery>,
+) -> Result<Json<ReceiverFeedResponse>, AppError> {
+    let receiver = pull_receiver_auth(&state, &headers).await?;
+
+    if !state.limiter.check(
+        format!("receiver-feed:{}", receiver.id),
+        120,
+        Duration::from_secs(60),
+    ) {
+        return Err(AppError::rate_limited());
+    }
+
+    let requested = parse_cursor(query.after.as_deref())?.unwrap_or(0);
+    let floor = requested.max(receiver.acked_ring_id);
+    let limit = query.limit.unwrap_or(50).clamp(1, 100) as usize;
+
+    // Scan a bounded batch so unmatched tagged rings can still advance the cursor.
+    let scan_limit = (limit * 20).clamp(100, 2000) as i64;
+    let rows = sqlx::query(
+        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at FROM rings WHERE id>? ORDER BY id ASC LIMIT ?",
+    )
+    .bind(floor)
+    .bind(scan_limit)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    let mut rings = Vec::new();
+    let mut cursor = floor;
+
+    for row in rows {
+        let ring_id: i64 = row.get("id");
+        let target_tags: Vec<String> =
+            serde_json::from_str(row.get("target_tags_json")).unwrap_or_default();
+
+        cursor = ring_id;
+
+        if !tags_match(&receiver.tags, &target_tags) {
+            continue;
+        }
+
+        rings.push(ReceiverFeedRing {
+            event_id: Uuid::parse_str(row.get("event_id"))
+                .map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
+            source_id: Uuid::parse_str(row.get("source_id"))
+                .map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
+            source_name: row.get("source_name"),
+            message: row.get("message"),
+            created_at: row.get("created_at"),
+            target_tags,
+        });
+
+        if rings.len() >= limit {
+            break;
+        }
+    }
+
+    Ok(Json(ReceiverFeedResponse {
+        rings,
+        cursor: cursor.to_string(),
+    }))
+}
+
+async fn ack_receiver_feed(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<ReceiverFeedAckRequest>,
+) -> Result<StatusCode, AppError> {
+    let receiver = pull_receiver_auth(&state, &headers).await?;
+
+    if !state.limiter.check(
+        format!("receiver-ack:{}", receiver.id),
+        120,
+        Duration::from_secs(60),
+    ) {
+        return Err(AppError::rate_limited());
+    }
+
+    let cursor = parse_cursor(Some(&request.cursor))?
+        .ok_or_else(|| AppError::bad("receiver feed cursor is required"))?;
+
+    sqlx::query(
+        "UPDATE pull_receivers SET acked_ring_id=MAX(acked_ring_id,?),updated_at=? WHERE id=? AND revoked_at IS NULL",
+    )
+    .bind(cursor)
+    .bind(Utc::now())
+    .bind(receiver.id.to_string())
+    .execute(&state.pool)
+    .await
+    .map_err(AppError::db)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn create_receiver(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -848,7 +1180,7 @@ async fn submit_ring(
     for row in receiver_rows {
         let receiver_tags: Vec<String> =
             serde_json::from_str(row.get("tags_json")).unwrap_or_default();
-        if tags.is_empty() || tags.iter().any(|tag| receiver_tags.contains(tag)) {
+        if tags_match(&receiver_tags, &tags) {
             receivers.push((
                 row.get::<String, _>("id"),
                 PushSubscription {
@@ -859,8 +1191,27 @@ async fn submit_ring(
             ));
         }
     }
+
+    let pull_receiver_rows = sqlx::query(
+        "SELECT tags_json FROM pull_receivers WHERE enabled=1 AND revoked_at IS NULL",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(AppError::db)?;
+
+    let matched_pull_receivers = pull_receiver_rows
+        .iter()
+        .filter(|row| {
+            let receiver_tags: Vec<String> =
+                serde_json::from_str(row.get("tags_json")).unwrap_or_default();
+            tags_match(&receiver_tags, &tags)
+        })
+        .count();
+
+    let matched_receivers = receivers.len() + matched_pull_receivers;
+
     let result = sqlx::query("INSERT INTO rings(event_id,source_id,source_name,message,target_tags_json,created_at,matched_receivers) VALUES(?,?,?,?,?,?,?)")
-        .bind(request.event_id.to_string()).bind(source.id.to_string()).bind(&source.display_name).bind(&message).bind(serde_json::to_string(&tags).unwrap()).bind(now).bind(receivers.len() as i64).execute(&mut *tx).await.map_err(AppError::db)?;
+        .bind(request.event_id.to_string()).bind(source.id.to_string()).bind(&source.display_name).bind(&message).bind(serde_json::to_string(&tags).unwrap()).bind(now).bind(matched_receivers as i64).execute(&mut *tx).await.map_err(AppError::db)?;
     let ring_id = result.last_insert_rowid();
     for (receiver_id, _) in &receivers {
         sqlx::query("INSERT INTO deliveries(ring_id,receiver_id,status) VALUES(?,?,'queued')")
@@ -919,7 +1270,7 @@ async fn submit_ring(
             event_id: request.event_id,
             accepted_at: now,
             duplicate: false,
-            matched_receivers: receivers.len() as u32,
+            matched_receivers: matched_receivers as u32,
         }),
     ))
 }
@@ -1150,7 +1501,7 @@ mod tests {
         .fetch_one(&harness.pool)
         .await
         .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
         let response = harness
             .app
             .clone()
@@ -1563,6 +1914,145 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(status, "permanent_failure");
+    }
+
+    #[tokio::test]
+    async fn pull_receiver_feed_is_scoped_durable_and_revocable() {
+        let harness = Harness::new(ChronoDuration::minutes(10)).await;
+        let pair = harness.pair("source").await;
+        let poll = harness.approve_and_poll(&pair).await;
+        let source_token = poll.source_token.unwrap();
+
+        let created_response = harness
+            .app
+            .clone()
+            .oneshot(harness.owner(
+                json_request(
+                    "POST",
+                    "/api/pull-receivers",
+                    PullReceiverCreateRequest {
+                        name: "Companion Cube".into(),
+                        tags: vec!["desk".into()],
+                    },
+                ),
+                true,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(created_response.status(), StatusCode::CREATED);
+        let created: PullReceiverCreatedResponse = body(created_response).await;
+        assert!(created.receiver_token.starts_with("sb_recv_"));
+
+        let ignored = RingRequest {
+            event_id: Uuid::new_v4(),
+            message: Some("phone only".into()),
+            target_tags: vec!["phone".into()],
+        };
+        let accepted: RingAcceptedResponse = body(
+            harness
+                .app
+                .clone()
+                .oneshot(bearer(json_request("POST", "/api/rings", ignored), &source_token))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(accepted.matched_receivers, 0);
+
+        let wanted = RingRequest {
+            event_id: Uuid::new_v4(),
+            message: Some("needs attention".into()),
+            target_tags: vec!["desk".into()],
+        };
+        let accepted: RingAcceptedResponse = body(
+            harness
+                .app
+                .clone()
+                .oneshot(bearer(json_request("POST", "/api/rings", &wanted), &source_token))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(accepted.matched_receivers, 1);
+
+        let feed_response = harness
+            .app
+            .clone()
+            .oneshot(bearer(
+                axum::http::Request::get("/api/receiver-feed?limit=50")
+                    .body(Body::empty())
+                    .unwrap(),
+                &created.receiver_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(feed_response.status(), StatusCode::OK);
+        let feed: ReceiverFeedResponse = body(feed_response).await;
+        assert_eq!(feed.rings.len(), 1);
+        assert_eq!(feed.rings[0].event_id, wanted.event_id);
+        assert_eq!(feed.rings[0].message.as_deref(), Some("needs attention"));
+
+        let ack_response = harness
+            .app
+            .clone()
+            .oneshot(bearer(
+                json_request(
+                    "POST",
+                    "/api/receiver-feed/ack",
+                    ReceiverFeedAckRequest {
+                        cursor: feed.cursor.clone(),
+                    },
+                ),
+                &created.receiver_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(ack_response.status(), StatusCode::NO_CONTENT);
+
+        let empty: ReceiverFeedResponse = body(
+            harness
+                .app
+                .clone()
+                .oneshot(bearer(
+                    axum::http::Request::get("/api/receiver-feed")
+                        .body(Body::empty())
+                        .unwrap(),
+                    &created.receiver_token,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(empty.rings.is_empty());
+
+        let revoke = harness
+            .app
+            .clone()
+            .oneshot(harness.owner(
+                axum::http::Request::delete(format!(
+                    "/api/pull-receivers/{}",
+                    created.receiver.id
+                ))
+                .body(Body::empty())
+                .unwrap(),
+                true,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(revoke.status(), StatusCode::NO_CONTENT);
+
+        let unauthorized = harness
+            .app
+            .clone()
+            .oneshot(bearer(
+                axum::http::Request::get("/api/receiver-feed")
+                    .body(Body::empty())
+                    .unwrap(),
+                &created.receiver_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
