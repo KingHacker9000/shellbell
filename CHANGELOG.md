@@ -6,6 +6,19 @@ Shellbell follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-27
+
+### Added
+
+- Durable receiver-scoped pull delivery for trusted desk/API clients, with one-time receiver credentials, tag filtering, acknowledgement cursors, rate limits, and immediate revocation.
+- Owner-PWA management for desk/API receivers, including one-time receiver-token display and the `desk` target tag.
+
+### Changed
+
+- Ring receiver counts include matching pull receivers alongside browser Push receivers.
+- Trusted displays can consume the existing privacy-bounded ring fields without owner-session credentials or a public callback endpoint.
+
+
 ## [0.1.2] - 2026-09-15
 
 ### Added
@@ -109,7 +122,8 @@ First public release candidate.
 - Simplified public documentation for first-time users.
 - Reframed internal milestone notes as a public roadmap and operations guide.
 
-[Unreleased]: https://github.com/KingHacker9000/shellbell/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/KingHacker9000/shellbell/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.3
 [0.1.2]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.2
 [0.1.1]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.1
 [0.1.0]: https://github.com/KingHacker9000/shellbell/releases/tag/v0.1.0
