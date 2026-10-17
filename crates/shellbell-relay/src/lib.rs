@@ -180,6 +180,16 @@ pub async fn build_app(
         limiter: Arc::new(RateLimiter::default()),
         ring_lock: Arc::new(tokio::sync::Mutex::new(())),
     };
+    let retention_pool = state.pool.clone();
+    tokio::spawn(async move {
+        let mut timer = tokio::time::interval(Duration::from_secs(3600));
+        loop {
+            timer.tick().await;
+            if runs::expire(&retention_pool).await.is_err() {
+                tracing::warn!("run metadata retention cleanup failed");
+            }
+        }
+    });
     let api = Router::new()
         .route("/health", get(health))
         .route("/api/owner/bootstrap/status", get(bootstrap_status))
@@ -945,9 +955,10 @@ async fn receiver_feed(
     // Scan a bounded batch so unmatched tagged rings can still advance the cursor.
     let scan_limit = (limit * 20).clamp(100, 2000) as i64;
     let rows = sqlx::query(
-        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at,beacon_json FROM rings WHERE id>? AND (beacon_json IS NULL OR (json_extract(beacon_json,'$.heartbeat')=0 AND json_extract(beacon_json,'$.state') IN ('waiting_input','waiting_approval','finished','failed','cancelled','needs_reauth'))) ORDER BY id ASC LIMIT ?",
+        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at,beacon_json FROM rings WHERE id>? AND (beacon_json IS NULL OR (created_at>? AND json_extract(beacon_json,'$.heartbeat')=0 AND json_extract(beacon_json,'$.state') IN ('waiting_input','waiting_approval','finished','failed','cancelled','needs_reauth'))) ORDER BY id ASC LIMIT ?",
     )
     .bind(floor)
+    .bind(Utc::now()-ChronoDuration::days(2))
     .bind(scan_limit)
     .fetch_all(&state.pool)
     .await
@@ -1175,10 +1186,12 @@ async fn submit_ring(
         .beacon
         .as_ref()
         .is_none_or(|b| !b.heartbeat && b.state.needs_attention());
-    let generated_message = request
-        .beacon
-        .as_ref()
-        .map(|b| format!("{} {} on {}", b.collector, b.state.label(), b.machine));
+    let generated_message = request.beacon.as_ref().map(|b| {
+        format!("{} {} on {}", b.collector, b.state.label(), b.machine)
+            .chars()
+            .take(MESSAGE_MAX)
+            .collect::<String>()
+    });
     let message = validate_message(generated_message.as_deref().or(request.message.as_deref()))
         .map_err(AppError::bad)?;
     let tags = validate_tags(&request.target_tags).map_err(AppError::bad)?;
@@ -1708,6 +1721,44 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let old = Utc::now() - ChronoDuration::days(3);
+        sqlx::query("UPDATE rings SET created_at=? WHERE source_id=?")
+            .bind(old)
+            .bind(source.to_string())
+            .execute(&h.pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE runs SET received_at=? WHERE source_id=?")
+            .bind(old)
+            .bind(source.to_string())
+            .execute(&h.pool)
+            .await
+            .unwrap();
+        let feed: ReceiverFeedResponse = body(
+            h.app
+                .clone()
+                .oneshot(bearer(
+                    axum::http::Request::get("/api/receiver-feed")
+                        .body(Body::empty())
+                        .unwrap(),
+                    &receiver.receiver_token,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert!(feed.rings.is_empty());
+        runs::expire(&h.pool).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM runs")
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rings")
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
     }
 
     #[tokio::test]

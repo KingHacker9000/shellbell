@@ -1,5 +1,20 @@
 use super::*;
 
+/// Periodic cleanup also covers an otherwise idle relay.
+pub(super) async fn expire(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let cutoff = Utc::now() - ChronoDuration::days(2);
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM rings WHERE beacon_json IS NOT NULL AND created_at<?")
+        .bind(cutoff)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM runs WHERE received_at<?")
+        .bind(cutoff)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await
+}
+
 pub(super) async fn record(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     source: Uuid,

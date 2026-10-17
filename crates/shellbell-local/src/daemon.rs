@@ -602,7 +602,9 @@ mod tests {
     }
 
     async fn wait_for_socket(path: &Path) {
-        for _ in 0..100 {
+        // Concurrent SQLite migrations and filesystem sync can exceed 500 ms on
+        // a loaded CI runner. Wait for readiness without delaying healthy starts.
+        for _ in 0..1000 {
             if path.exists() {
                 return;
             }
