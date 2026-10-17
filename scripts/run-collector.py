@@ -131,6 +131,18 @@ def parse_queue(text):
     return result, details
 
 
+def parse_accounting_details(text):
+    states, details = {}, {}
+    for line in text.split("\n"):
+        fields = line.strip().split("\x1f")
+        if len(fields) != 10 or not re.fullmatch(r"[0-9]+(?:[_+][0-9]+)?", fields[0]):
+            continue
+        clean = lambda value: "".join(c for c in value.strip() if c.isprintable())[:256]
+        states[fields[0]] = slurm_state(fields[1])
+        details[fields[0]] = {"name": clean(fields[2]), "partition": clean(fields[3]), "elapsed": clean(fields[4]), "time_limit": clean(fields[5]), "cpus": int(fields[6]) if fields[6].isdigit() and int(fields[6]) <= 1_000_000 else None, "min_memory": clean(fields[7]), "tres_per_node": "", "start_time": clean(fields[8]), "node_reason": clean(fields[9])}
+    return states, details
+
+
 def atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, tmp = tempfile.mkstemp(dir=path.parent)
@@ -185,6 +197,18 @@ def poll(config_path):
             cached = {key: value for key, value in details_cache.get(machine, {}).items() if now - value.get("seen_at", 0) < 2 * 86400}
             for key, value in display_details.items():
                 cached[key] = {"job": value, "seen_at": now}
+            enriched = set()
+            unnamed = [key for key in before if IDENT.fullmatch(key) and key != "_connection" and key not in cached][:200] if detailed else []
+            if unnamed:
+                command = sacct + " --noheader --parsable2 --allocations --starttime=now-2days --jobs=" + shlex.quote(",".join(unnamed)) + " --delimiter=" + shlex.quote("\x1f") + " --format=JobIDRaw,State,JobName%256,Partition,Elapsed,Timelimit,NCPUS,ReqMem,Start,NodeList"
+                accounting_details = subprocess.run(prefix + [host, remote(command)], capture_output=True, text=True, timeout=25)
+                if accounting_details.returncode == 0:
+                    history_states, history_details = parse_accounting_details(accounting_details.stdout)
+                    for key, value in history_details.items():
+                        cached[key] = {"job": value, "seen_at": now}
+                        if key not in current:
+                            current[key] = history_states[key]
+                        enriched.add(key)
             details_cache[machine] = dict(list(cached.items())[-2000:]) if detailed else {}
             missing = {job: state for job, state in before.items() if state in {"running", "queued", "unknown"} and job not in current}
             if missing:
@@ -195,7 +219,7 @@ def poll(config_path):
             # Preserve terminal identities without issuing duplicate pings on each poll.
             current = {**{k: v for k, v in before.items() if v in {"finished", "failed", "cancelled"}}, **current}
             for job, state in current.items():
-                if state != before.get(job) or state in {"running", "queued"}:
+                if state != before.get(job) or state in {"running", "queued"} or job in enriched:
                     emit("slurm", job, state, machine, heartbeat=(state == before.get(job)), stale=600, job=cached.get(job, {}).get("job") if detailed else None)
             previous[machine] = dict(list(current.items())[-2000:])
             emit("slurm-collector", "connection", "running", machine, heartbeat=True, stale=600)

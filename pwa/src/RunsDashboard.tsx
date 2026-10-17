@@ -53,7 +53,7 @@ function gpuLabel(value: string) {
   const model = /^gres\/gpu:([^:,]+):(\d+)$/.exec(value)
   if (model) return `${model[1].toUpperCase()} × ${model[2]}`
   const count = /^gres\/gpu:(\d+)$/.exec(value)
-  return count ? `${count[1]} GPU` : value === 'N/A' || !value ? 'No GPU requested' : value
+  return count ? `${count[1]} GPU` : !value ? 'GPU not reported' : value === 'N/A' ? 'No GPU requested' : value
 }
 function JobDetails({ beacon }: { beacon: RunBeacon }) {
   const job = beacon.job

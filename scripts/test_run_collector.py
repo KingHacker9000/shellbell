@@ -39,6 +39,11 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(details["123_4"]["cpus"], 4)
         self.assertEqual(set(details["123_4"]), {"name", "partition", "elapsed", "time_limit", "cpus", "min_memory", "tres_per_node", "start_time", "node_reason"})
         self.assertEqual(collector.parse_queue("malformed output"), ({}, {}))
+        history = ["123_4", "COMPLETED", "training-baseline", "gpu", "19:10", "2:00:00", "4", "48Gn", "2026-10-17T12:00:00", "node1"]
+        states, details = collector.parse_accounting_details("\x1f".join(history))
+        self.assertEqual(states["123_4"], "finished")
+        self.assertEqual(details["123_4"]["name"], "training-baseline")
+        self.assertEqual(details["123_4"]["tres_per_node"], "")
 
 
 if __name__ == "__main__":
