@@ -112,7 +112,7 @@ export default function RunsDashboard({ onError, onAddSource }: { onError: (erro
   const needsYou = runs.filter(r => waiting.has(r.beacon.state))
   const machines = [...new Set(runs.map(r => r.beacon.machine))].sort()
   const filtered = runs.filter(r => (!activeOnly || (!r.stale && (active.has(r.beacon.state) || r.beacon.state === 'queued'))) && (scope === 'all' || (scope === 'slurm' ? r.beacon.collector === 'slurm' : r.beacon.collector !== 'slurm')) && (machine === 'all' || r.beacon.machine === machine) && [r.beacon.machine, r.beacon.collector, r.beacon.run_id, r.beacon.job?.name || '', r.beacon.job?.partition || ''].some(v => v.toLowerCase().includes(query.toLowerCase())))
-  const ordered = [...filtered].sort((a, b) => Number(waiting.has(b.beacon.state)) - Number(waiting.has(a.beacon.state)) || Number(terminal.has(a.beacon.state)) - Number(terminal.has(b.beacon.state)))
+  const ordered = [...filtered].sort((a, b) => Number(waiting.has(b.beacon.state)) - Number(waiting.has(a.beacon.state)) || Number(active.has(b.beacon.state)) - Number(active.has(a.beacon.state)) || Number(terminal.has(a.beacon.state)) - Number(terminal.has(b.beacon.state)))
   const stats = [
     { label: 'In progress', value: runs.filter(r => active.has(r.beacon.state) && !r.stale).length, icon: 'pulse', color: 'teal', detail: 'Actively working' },
     { label: 'Queued', value: runs.filter(r => r.beacon.state === 'queued' && !r.stale).length, icon: 'clock', color: 'blue', detail: 'Waiting for resources' },

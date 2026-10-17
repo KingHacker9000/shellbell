@@ -84,11 +84,12 @@ describe('run dashboard', () => {
   })
   it('limits active-only results to fresh working or queued runs and restores other states', async () => {
     const stale = { ...run('slurm', 'cluster', 'stale-job', 'running'), stale: true }
-    setup({ runs: [...work, stale, run('slurm', 'cluster', 'cancelled', 'cancelled'), run('slurm', 'cluster', 'failed', 'failed')], inbox: [] })
+    setup({ runs: [work[2], work[3], work[0], work[1], stale, run('slurm', 'cluster', 'cancelled', 'cancelled'), run('slurm', 'cluster', 'failed', 'failed')], inbox: [] })
     await screen.findByText('Job #123')
     const workload = screen.getByRole('region', { name: 'Workload' })
     await userEvent.click(screen.getByRole('switch', { name: 'Active only' }))
     expect(within(workload).getAllByRole('article')).toHaveLength(2)
+    expect(within(workload).getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual(['Codex', 'Job #123'])
     expect(within(workload).getByText('Codex')).toBeInTheDocument()
     expect(within(workload).getByText('Job #123')).toBeInTheDocument()
     expect(within(workload).queryByText('Job #124')).not.toBeInTheDocument()
