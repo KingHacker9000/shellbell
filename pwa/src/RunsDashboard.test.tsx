@@ -65,4 +65,35 @@ describe('run dashboard', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Search runs' }), 'baseline')
     expect(screen.getByText('training-baseline')).toBeInTheDocument()
   })
+  it('shows full completion with actual runtime and distinguishes cancellations', async () => {
+    const complete = run('slurm', 'cluster', 'done', 'finished')
+    complete.beacon.job = { name: 'completed-job', partition: 'gpu', elapsed: '00:35:23', time_limit: '02:30:00', cpus: 4, min_memory: '48G', tres_per_node: '', start_time: 'N/A', node_reason: 'node1' }
+    const cancelled = run('slurm', 'cluster', 'cancelled', 'cancelled')
+    cancelled.beacon.job = { ...complete.beacon.job, name: 'cancelled-job', elapsed: '00:01:18' }
+    setup({ runs: [complete, cancelled], inbox: [] })
+    const card = (await screen.findByText('completed-job')).closest('article')!
+    expect(within(card).getByText('Completed')).toBeInTheDocument()
+    expect(within(card).getByText('Completed in')).toBeInTheDocument()
+    expect(within(card).getByText('35m 23s')).toBeInTheDocument()
+    expect(within(card).getByRole('progressbar', { name: 'Job completed' })).toHaveAttribute('aria-valuenow', '100')
+    const cancelledCard = screen.getByText('cancelled-job').closest('article')!
+    expect(within(cancelledCard).getByText('Cancelled')).toBeInTheDocument()
+    expect(within(cancelledCard).getByText('Ran before cancellation')).toBeInTheDocument()
+    expect(within(cancelledCard).getByText('1m 18s')).toBeInTheDocument()
+    expect(within(cancelledCard).queryByRole('progressbar', { name: 'Job completed' })).not.toBeInTheDocument()
+  })
+  it('limits active-only results to fresh working or queued runs and restores other states', async () => {
+    const stale = { ...run('slurm', 'cluster', 'stale-job', 'running'), stale: true }
+    setup({ runs: [...work, stale, run('slurm', 'cluster', 'cancelled', 'cancelled'), run('slurm', 'cluster', 'failed', 'failed')], inbox: [] })
+    await screen.findByText('Job #123')
+    const workload = screen.getByRole('region', { name: 'Workload' })
+    await userEvent.click(screen.getByRole('switch', { name: 'Active only' }))
+    expect(within(workload).getAllByRole('article')).toHaveLength(2)
+    expect(within(workload).getByText('Codex')).toBeInTheDocument()
+    expect(within(workload).getByText('Job #123')).toBeInTheDocument()
+    expect(within(workload).queryByText('Job #124')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('switch', { name: 'Active only' }))
+    expect(within(workload).getAllByRole('article')).toHaveLength(7)
+  })
+
 })
