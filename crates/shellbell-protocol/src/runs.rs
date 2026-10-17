@@ -14,6 +14,22 @@ pub struct RunBeacon {
     pub heartbeat: bool,
     #[serde(default = "default_stale")]
     pub stale_after_seconds: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<SlurmJobMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SlurmJobMetadata {
+    pub name: String,
+    pub partition: String,
+    pub elapsed: String,
+    pub time_limit: String,
+    pub cpus: Option<u32>,
+    pub min_memory: String,
+    pub tres_per_node: String,
+    pub start_time: String,
+    pub node_reason: String,
 }
 fn default_stale() -> u32 {
     3600
@@ -67,6 +83,28 @@ impl RunState {
 }
 impl RunBeacon {
     pub fn validate(&self) -> Result<(), &'static str> {
+        if let Some(job) = &self.job {
+            if self.collector != "slurm" {
+                return Err("job metadata is only allowed for Slurm");
+            }
+            for value in [
+                &job.name,
+                &job.partition,
+                &job.elapsed,
+                &job.time_limit,
+                &job.min_memory,
+                &job.tres_per_node,
+                &job.start_time,
+                &job.node_reason,
+            ] {
+                if value.chars().count() > 256 || value.chars().any(char::is_control) {
+                    return Err("invalid Slurm display metadata");
+                }
+            }
+            if job.cpus.is_some_and(|n| n > 1_000_000) {
+                return Err("invalid CPU allocation");
+            }
+        }
         for value in [&self.collector, &self.machine, &self.run_id] {
             if value.is_empty()
                 || value.len() > 128
@@ -96,6 +134,7 @@ mod tests {
             observed_at: Utc::now(),
             heartbeat: false,
             stale_after_seconds: 3600,
+            job: None,
         }
     }
     #[test]
@@ -112,6 +151,31 @@ mod tests {
         let mut b = serde_json::to_value(beacon()).unwrap();
         b["prompt"] = serde_json::json!("private");
         assert!(serde_json::from_value::<RunBeacon>(b).is_err());
+    }
+    #[test]
+    fn slurm_details_are_an_explicit_bounded_allowlist() {
+        let mut b = beacon();
+        b.collector = "slurm".into();
+        b.job = Some(SlurmJobMetadata {
+            name: "training-baseline".into(),
+            partition: "gpu".into(),
+            elapsed: "12:31".into(),
+            time_limit: "2:00:00".into(),
+            cpus: Some(4),
+            min_memory: "48G".into(),
+            tres_per_node: "gres/gpu:example:1".into(),
+            start_time: "N/A".into(),
+            node_reason: "(Dependency)".into(),
+        });
+        assert!(b.validate().is_ok());
+        let mut payload = serde_json::to_value(&b).unwrap();
+        payload["job"]["command"] = serde_json::json!("private command");
+        assert!(serde_json::from_value::<RunBeacon>(payload).is_err());
+        b.collector = "claude".into();
+        assert!(b.validate().is_err());
+        b.collector = "slurm".into();
+        b.job.as_mut().unwrap().name = "line\nfeed".into();
+        assert!(b.validate().is_err());
     }
     #[test]
     fn freshness_interval_is_bounded() {

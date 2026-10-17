@@ -31,6 +31,15 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(collector.parse_slurm("12|RUNNING\n13_4|FAILED\n14.batch|COMPLETED\n15|CANCELLED by 123\n"), {"12": "running", "13_4": "failed", "15": "cancelled"})
         self.assertEqual(collector.slurm_state("NOT_RECOGNIZED"), "unknown")
 
+    def test_job_display_details_are_selected_and_do_not_request_commands(self):
+        fields = ["123_4", "RUNNING", "training-baseline", "gpu", "12:31", "2:00:00", "4", "48G", "gres/gpu:example:1", "2026-10-17T12:00:00", "node1"]
+        states, details = collector.parse_queue("\x1f".join(fields) + "\n")
+        self.assertEqual(states, {"123_4": "running"})
+        self.assertEqual(details["123_4"]["name"], "training-baseline")
+        self.assertEqual(details["123_4"]["cpus"], 4)
+        self.assertEqual(set(details["123_4"]), {"name", "partition", "elapsed", "time_limit", "cpus", "min_memory", "tres_per_node", "start_time", "node_reason"})
+        self.assertEqual(collector.parse_queue("malformed output"), ({}, {}))
+
 
 if __name__ == "__main__":
     unittest.main()

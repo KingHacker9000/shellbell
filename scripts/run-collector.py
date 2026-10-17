@@ -17,11 +17,15 @@ STATES = {"started", "running", "queued", "waiting_input", "waiting_approval", "
 IDENT = re.compile(r"^[A-Za-z0-9._:@+\-]{1,128}$")
 
 
+class SchedulerError(RuntimeError):
+    pass
+
+
 def state_dir():
     return Path(os.environ.get("SHELLBELL_STATE_DIR", Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "shellbell"))
 
 
-def emit(collector, run_id, state, machine=None, heartbeat=False, event_id=None, stale=3600):
+def emit(collector, run_id, state, machine=None, heartbeat=False, event_id=None, stale=3600, job=None):
     machine = machine or socket.gethostname().split(".")[0]
     if state not in STATES or not all(IDENT.fullmatch(str(v)) for v in (collector, run_id, machine)):
         raise ValueError("invalid beacon metadata")
@@ -32,6 +36,8 @@ def emit(collector, run_id, state, machine=None, heartbeat=False, event_id=None,
         "observed_at": dt.datetime.now(dt.timezone.utc).isoformat(), "heartbeat": heartbeat,
         "stale_after_seconds": stale,
     }}
+    if job is not None:
+        value["beacon"]["job"] = job
     spool = state_dir() / "beacons"
     spool.mkdir(mode=0o700, parents=True, exist_ok=True)
     if sum(1 for _ in spool.glob("*.json")) >= 5000:
@@ -111,6 +117,20 @@ def parse_slurm(text):
     return result
 
 
+def parse_queue(text):
+    """Only the explicitly requested display fields, separated without truncation."""
+    result, details = {}, {}
+    for line in text.split("\n"):
+        fields = line.strip().split("\x1f")
+        if len(fields) != 11 or not re.fullmatch(r"[0-9]+(?:[_+][0-9]+)?", fields[0]):
+            continue
+        result[fields[0]] = slurm_state(fields[1])
+        clean = lambda value: "".join(c for c in value.strip() if c.isprintable())[:256]
+        details[fields[0]] = dict(zip(["name", "partition", "elapsed", "time_limit", "min_memory", "tres_per_node", "start_time", "node_reason"], map(clean, fields[2:6] + fields[7:11])))
+        details[fields[0]]["cpus"] = int(fields[6]) if fields[6].isdigit() and int(fields[6]) <= 1_000_000 else None
+    return result, details
+
+
 def atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, tmp = tempfile.mkstemp(dir=path.parent)
@@ -125,6 +145,8 @@ def poll(config_path):
     config = json.loads(Path(config_path).read_text())
     path = state_dir() / "slurm-state.json"
     previous = json.loads(path.read_text()) if path.exists() else {}
+    details_path = state_dir() / "slurm-details.json"
+    details_cache = json.loads(details_path.read_text()) if details_path.exists() else {}
     for target in config.get("clusters", []):
         if not target.get("enabled", False):
             continue
@@ -144,11 +166,26 @@ def poll(config_path):
         def remote(command):
             return "bash -lc " + shlex.quote(command) if target.get("login_shell") else command
         try:
-            # Only job identifiers and scheduler state leave SSH. No names, commands, paths, output, or exit codes.
-            queue = subprocess.run(prefix + [host, remote(squeue + " --me --noheader --array --format='%i|%T'")], capture_output=True, text=True, timeout=25)
+            # Job display details are a separate opt-in. Never request command/path/output fields.
+            detailed = target.get("job_details", False)
+            display_format = "\x1f".join(["%i", "%T", "%j", "%P", "%M", "%l", "%C", "%m", "%b", "%S", "%R"]) if detailed else "%i|%T"
+            queue = subprocess.run(prefix + [host, remote(squeue + " --me --noheader --array --format=" + shlex.quote(display_format))], capture_output=True, text=True, timeout=25)
             if queue.returncode:
-                raise ConnectionError("scheduler unavailable")
-            current = parse_slurm(queue.stdout)
+                if queue.returncode == 255:
+                    raise ConnectionError("SSH unavailable")
+                raise SchedulerError("scheduler unavailable")
+            if detailed:
+                current, display_details = parse_queue(queue.stdout)
+                # A malformed/nonstandard queue response cannot be treated as an empty queue.
+                if queue.stdout.strip() and not current:
+                    raise SchedulerError("scheduler format unsupported")
+            else:
+                current, display_details = parse_slurm(queue.stdout), {}
+            now = dt.datetime.now(dt.timezone.utc).timestamp()
+            cached = {key: value for key, value in details_cache.get(machine, {}).items() if now - value.get("seen_at", 0) < 2 * 86400}
+            for key, value in display_details.items():
+                cached[key] = {"job": value, "seen_at": now}
+            details_cache[machine] = dict(list(cached.items())[-2000:]) if detailed else {}
             missing = {job: state for job, state in before.items() if state in {"running", "queued", "unknown"} and job not in current}
             if missing:
                 accounting = subprocess.run(prefix + [host, remote(sacct + " --noheader --parsable2 --allocations --starttime=now-2days --format=JobIDRaw,State")], capture_output=True, text=True, timeout=25)
@@ -159,14 +196,18 @@ def poll(config_path):
             current = {**{k: v for k, v in before.items() if v in {"finished", "failed", "cancelled"}}, **current}
             for job, state in current.items():
                 if state != before.get(job) or state in {"running", "queued"}:
-                    emit("slurm", job, state, machine, heartbeat=(state == before.get(job)), stale=600)
+                    emit("slurm", job, state, machine, heartbeat=(state == before.get(job)), stale=600, job=cached.get(job, {}).get("job") if detailed else None)
             previous[machine] = dict(list(current.items())[-2000:])
             emit("slurm-collector", "connection", "running", machine, heartbeat=True, stale=600)
-        except (ConnectionError, subprocess.TimeoutExpired):
+        except ConnectionError:
             # Never launch interactive/Duo authentication in a background timer.
             emit("slurm-collector", "connection", "needs_reauth", machine, heartbeat=before.get("_connection") == "needs_reauth", stale=600)
             previous.setdefault(machine, {})["_connection"] = "needs_reauth"
+        except (SchedulerError, subprocess.TimeoutExpired):
+            emit("slurm-collector", "connection", "unknown", machine, heartbeat=before.get("_connection") == "unknown", stale=600)
+            previous.setdefault(machine, {})["_connection"] = "unknown"
     atomic_json(path, previous)
+    atomic_json(details_path, details_cache)
 
 
 def main():

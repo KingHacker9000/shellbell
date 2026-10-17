@@ -1,5 +1,23 @@
 use super::*;
 
+pub(super) fn message(beacon: &RunBeacon) -> String {
+    let subject = if let Some(job) = &beacon.job {
+        if job.name.is_empty() {
+            format!("Slurm job {}", beacon.run_id)
+        } else {
+            format!("Slurm · {}", job.name)
+        }
+    } else if beacon.collector == "slurm" {
+        format!("Slurm job {}", beacon.run_id)
+    } else {
+        beacon.collector.clone()
+    };
+    format!("{} {} on {}", subject, beacon.state.label(), beacon.machine)
+        .chars()
+        .take(MESSAGE_MAX)
+        .collect()
+}
+
 /// Periodic cleanup also covers an otherwise idle relay.
 pub(super) async fn expire(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let cutoff = Utc::now() - ChronoDuration::days(2);

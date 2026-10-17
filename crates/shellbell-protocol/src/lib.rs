@@ -1,5 +1,5 @@
 mod runs;
-pub use runs::{RunBeacon, RunState};
+pub use runs::{RunBeacon, RunState, SlurmJobMetadata};
 // Shared, wire-compatible Shellbell API models and validation contracts.
 
 use chrono::{DateTime, Utc};

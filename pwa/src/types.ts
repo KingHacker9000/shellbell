@@ -7,7 +7,8 @@ export type PullReceiverCreated = { receiver: PullReceiver; receiver_token: stri
 export type Settings = { history_retention_days: number; vapid_public_key: string }
 export type NotificationState = NotificationPermission | 'unsupported'
 
-export interface RunBeacon { collector: string; machine: string; run_id: string; state: string; observed_at: string; heartbeat: boolean; stale_after_seconds: number }
+export interface SlurmJobMetadata { name: string; partition: string; elapsed: string; time_limit: string; cpus: number | null; min_memory: string; tres_per_node: string; start_time: string; node_reason: string }
+export interface RunBeacon { collector: string; machine: string; run_id: string; state: string; observed_at: string; heartbeat: boolean; stale_after_seconds: number; job?: SlurmJobMetadata }
 export interface TrackedRun { source_id: string; source_name: string; beacon: RunBeacon; stale: boolean; received_at: string }
 export interface RunInboxItem { source_id: string; event_id: string; source_name: string; beacon: RunBeacon; created_at: string }
 export interface RunSnapshot { runs: TrackedRun[]; inbox: RunInboxItem[] }

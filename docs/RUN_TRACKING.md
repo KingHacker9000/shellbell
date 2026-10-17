@@ -61,6 +61,17 @@ Configure a private JSON file:
 ```
 
 An optional `ssh_config` names an existing OpenSSH config. Run
+`job_details: true` on a cluster opts into its job name, partition, elapsed/time
+limit, CPU allocation, minimum memory, per-node GPU/TRES, reported start and
+node/pending reason. These are bounded display fields; raw commands, job scripts,
+paths, output and environment remain excluded. The collector requests only those
+fields using an untruncated delimiter-separated format. Names and resources are
+retained in a private bounded two-day metadata cache so completed jobs retain
+their context. `login_shell: true` initializes scheduler environments when needed.
+The Runs dashboard separates connection checks from workload, supports filters
+and search, and places job names/resources ahead of opaque identifiers.
+
+Run
 `shellbell-collector poll-slurm CONFIG` on a two-minute systemd timer, from a host
 that already has the necessary credentials and SSH ControlMaster sessions.
 Only `squeue --me --noheader --array --format='%i|%T'` and, for missing jobs,

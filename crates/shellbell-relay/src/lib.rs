@@ -172,6 +172,7 @@ pub async fn build_app(
     push: Arc<dyn PushDelivery>,
 ) -> anyhow::Result<Router> {
     sqlx::query("INSERT INTO settings(key,value) VALUES('history_retention_days',?) ON CONFLICT(key) DO NOTHING").bind(config.default_retention_days.to_string()).execute(&pool).await?;
+    runs::expire(&pool).await?;
     let static_dir = config.static_dir.clone();
     let state = AppState {
         pool,
@@ -183,6 +184,7 @@ pub async fn build_app(
     let retention_pool = state.pool.clone();
     tokio::spawn(async move {
         let mut timer = tokio::time::interval(Duration::from_secs(3600));
+        timer.tick().await;
         loop {
             timer.tick().await;
             if runs::expire(&retention_pool).await.is_err() {
@@ -1186,12 +1188,7 @@ async fn submit_ring(
         .beacon
         .as_ref()
         .is_none_or(|b| !b.heartbeat && b.state.needs_attention());
-    let generated_message = request.beacon.as_ref().map(|b| {
-        format!("{} {} on {}", b.collector, b.state.label(), b.machine)
-            .chars()
-            .take(MESSAGE_MAX)
-            .collect::<String>()
-    });
+    let generated_message = request.beacon.as_ref().map(runs::message);
     let message = validate_message(generated_message.as_deref().or(request.message.as_deref()))
         .map_err(AppError::bad)?;
     let tags = validate_tags(&request.target_tags).map_err(AppError::bad)?;
@@ -1287,7 +1284,11 @@ async fn submit_ring(
     let payload = serde_json::to_vec(&PushPayload {
         title: "Shellbell",
         body: message.as_deref().unwrap_or("Your terminal is ready"),
-        url: "/?view=rings",
+        url: if request.beacon.is_some() {
+            "/?view=runs"
+        } else {
+            "/?view=rings"
+        },
         event_id: request.event_id,
     })
     .map_err(|_| AppError::bad("could not serialize notification"))?;
@@ -1573,6 +1574,7 @@ mod tests {
                 observed_at: now,
                 heartbeat: false,
                 stale_after_seconds: 60,
+                job: None,
             }),
         };
         for duplicate in [false, true] {
