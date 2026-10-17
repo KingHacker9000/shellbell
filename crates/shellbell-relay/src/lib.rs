@@ -1,4 +1,5 @@
 pub mod push;
+mod runs;
 
 use axum::{
     Json, Router,
@@ -214,6 +215,14 @@ pub async fn build_app(
         .route("/api/receiver-feed", get(receiver_feed))
         .route("/api/receiver-feed/ack", post(ack_receiver_feed))
         .route("/api/rings", post(submit_ring).get(list_rings))
+        .route("/api/beacons", post(submit_ring))
+        .route("/api/runs", get(runs::list))
+        .route("/api/run-inbox", axum::routing::delete(runs::clear))
+        .route(
+            "/api/run-inbox/{source}/{event}",
+            axum::routing::delete(runs::dismiss),
+        )
+        .route("/api/receiver-runs", get(runs::receiver_list))
         .route("/api/settings", get(get_settings).put(update_settings))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(CompressionLayer::new())
@@ -936,7 +945,7 @@ async fn receiver_feed(
     // Scan a bounded batch so unmatched tagged rings can still advance the cursor.
     let scan_limit = (limit * 20).clamp(100, 2000) as i64;
     let rows = sqlx::query(
-        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at FROM rings WHERE id>? ORDER BY id ASC LIMIT ?",
+        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at,beacon_json FROM rings WHERE id>? AND (beacon_json IS NULL OR (json_extract(beacon_json,'$.heartbeat')=0 AND json_extract(beacon_json,'$.state') IN ('waiting_input','waiting_approval','finished','failed','cancelled','needs_reauth'))) ORDER BY id ASC LIMIT ?",
     )
     .bind(floor)
     .bind(scan_limit)
@@ -959,6 +968,9 @@ async fn receiver_feed(
         }
 
         rings.push(ReceiverFeedRing {
+            beacon: row
+                .get::<Option<String>, _>("beacon_json")
+                .and_then(|s| serde_json::from_str(&s).ok()),
             event_id: Uuid::parse_str(row.get("event_id"))
                 .map_err(|_| AppError::db(sqlx::Error::RowNotFound))?,
             source_id: Uuid::parse_str(row.get("source_id"))
@@ -1150,7 +1162,25 @@ async fn submit_ring(
     {
         return Err(AppError::rate_limited());
     }
-    let message = validate_message(request.message.as_deref()).map_err(AppError::bad)?;
+    if let Some(beacon) = &request.beacon {
+        beacon.validate().map_err(AppError::bad)?;
+        let age = Utc::now() - beacon.observed_at;
+        if age < -ChronoDuration::minutes(5) || age > ChronoDuration::days(2) {
+            return Err(AppError::bad(
+                "beacon timestamp is outside retention window",
+            ));
+        }
+    }
+    let notify = request
+        .beacon
+        .as_ref()
+        .is_none_or(|b| !b.heartbeat && b.state.needs_attention());
+    let generated_message = request
+        .beacon
+        .as_ref()
+        .map(|b| format!("{} {} on {}", b.collector, b.state.label(), b.machine));
+    let message = validate_message(generated_message.as_deref().or(request.message.as_deref()))
+        .map_err(AppError::bad)?;
     let tags = validate_tags(&request.target_tags).map_err(AppError::bad)?;
     let ring_guard = state.ring_lock.lock().await;
     let mut tx = state.pool.begin().await.map_err(AppError::db)?;
@@ -1179,7 +1209,7 @@ async fn submit_ring(
     for row in receiver_rows {
         let receiver_tags: Vec<String> =
             serde_json::from_str(row.get("tags_json")).unwrap_or_default();
-        if tags_match(&receiver_tags, &tags) {
+        if notify && tags_match(&receiver_tags, &tags) {
             receivers.push((
                 row.get::<String, _>("id"),
                 PushSubscription {
@@ -1202,7 +1232,7 @@ async fn submit_ring(
         .filter(|row| {
             let receiver_tags: Vec<String> =
                 serde_json::from_str(row.get("tags_json")).unwrap_or_default();
-            tags_match(&receiver_tags, &tags)
+            notify && tags_match(&receiver_tags, &tags)
         })
         .count();
 
@@ -1211,6 +1241,9 @@ async fn submit_ring(
     let result = sqlx::query("INSERT INTO rings(event_id,source_id,source_name,message,target_tags_json,created_at,matched_receivers) VALUES(?,?,?,?,?,?,?)")
         .bind(request.event_id.to_string()).bind(source.id.to_string()).bind(&source.display_name).bind(&message).bind(serde_json::to_string(&tags).unwrap()).bind(now).bind(matched_receivers as i64).execute(&mut *tx).await.map_err(AppError::db)?;
     let ring_id = result.last_insert_rowid();
+    if let Some(beacon) = &request.beacon {
+        runs::record(&mut tx, source.id, request.event_id, beacon, &tags, now).await?;
+    }
     for (receiver_id, _) in &receivers {
         sqlx::query("INSERT INTO deliveries(ring_id,receiver_id,status) VALUES(?,?,'queued')")
             .bind(ring_id)
@@ -1491,6 +1524,193 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_beacons_are_private_idempotent_ordered_and_clearable() {
+        let h = Harness::new(ChronoDuration::minutes(10)).await;
+        let pair = h.pair("source").await;
+        let paired = h.approve_and_poll(&pair).await;
+        let token = paired.source_token.unwrap();
+        let source = paired.source_id.unwrap();
+        let created = h
+            .app
+            .clone()
+            .oneshot(h.owner(
+                json_request(
+                    "POST",
+                    "/api/pull-receivers",
+                    PullReceiverCreateRequest {
+                        name: "desk".into(),
+                        tags: vec!["desk".into()],
+                    },
+                ),
+                true,
+            ))
+            .await
+            .unwrap();
+        let receiver: PullReceiverCreatedResponse = body(created).await;
+        let now = Utc::now();
+        let mut request = RingRequest {
+            event_id: Uuid::new_v4(),
+            message: Some("must not forward arbitrary text".into()),
+            target_tags: vec!["desk".into()],
+            beacon: Some(RunBeacon {
+                collector: "codex".into(),
+                machine: "test".into(),
+                run_id: "session".into(),
+                state: RunState::WaitingInput,
+                observed_at: now,
+                heartbeat: false,
+                stale_after_seconds: 60,
+            }),
+        };
+        for duplicate in [false, true] {
+            let response = h
+                .app
+                .clone()
+                .oneshot(bearer(
+                    json_request("POST", "/api/beacons", &request),
+                    &token,
+                ))
+                .await
+                .unwrap();
+            assert!(response.status().is_success());
+            let accepted: RingAcceptedResponse = body(response).await;
+            assert_eq!(accepted.duplicate, duplicate);
+        }
+        let feed: ReceiverFeedResponse = body(
+            h.app
+                .clone()
+                .oneshot(bearer(
+                    axum::http::Request::get("/api/receiver-feed")
+                        .body(Body::empty())
+                        .unwrap(),
+                    &receiver.receiver_token,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(feed.rings.len(), 1);
+        assert_eq!(
+            feed.rings[0].beacon.as_ref().unwrap().state,
+            RunState::WaitingInput
+        );
+        assert!(
+            !feed.rings[0]
+                .message
+                .as_ref()
+                .unwrap()
+                .contains("arbitrary")
+        );
+        // Older start received after the question must not reset live status.
+        request.event_id = Uuid::new_v4();
+        request.beacon.as_mut().unwrap().observed_at = now - ChronoDuration::seconds(5);
+        request.beacon.as_mut().unwrap().state = RunState::Started;
+        h.app
+            .clone()
+            .oneshot(bearer(
+                json_request("POST", "/api/beacons", &request),
+                &token,
+            ))
+            .await
+            .unwrap();
+        // A heartbeat from an old state cannot resurrect a finished/waiting turn.
+        request.event_id = Uuid::new_v4();
+        request.beacon.as_mut().unwrap().observed_at = now + ChronoDuration::seconds(1);
+        request.beacon.as_mut().unwrap().heartbeat = true;
+        h.app
+            .clone()
+            .oneshot(bearer(
+                json_request("POST", "/api/beacons", &request),
+                &token,
+            ))
+            .await
+            .unwrap();
+        let snapshot: serde_json::Value = body(
+            h.app
+                .clone()
+                .oneshot(
+                    h.owner(
+                        axum::http::Request::get("/api/runs")
+                            .body(Body::empty())
+                            .unwrap(),
+                        false,
+                    ),
+                )
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(snapshot["runs"][0]["beacon"]["state"], "waiting_input");
+        assert_eq!(snapshot["inbox"].as_array().unwrap().len(), 2);
+        let unauthorized = h
+            .app
+            .clone()
+            .oneshot(bearer(
+                axum::http::Request::get("/api/runs")
+                    .body(Body::empty())
+                    .unwrap(),
+                &receiver.receiver_token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+        let denied = h
+            .app
+            .clone()
+            .oneshot(
+                h.owner(
+                    axum::http::Request::delete("/api/run-inbox")
+                        .body(Body::empty())
+                        .unwrap(),
+                    false,
+                ),
+            )
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        let cleared = h
+            .app
+            .clone()
+            .oneshot(
+                h.owner(
+                    axum::http::Request::delete("/api/run-inbox")
+                        .body(Body::empty())
+                        .unwrap(),
+                    true,
+                ),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cleared.status(), StatusCode::NO_CONTENT);
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM rings WHERE dismissed=0 AND beacon_json IS NOT NULL",
+        )
+        .fetch_one(&h.pool)
+        .await
+        .unwrap();
+        assert_eq!(count, 0);
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM runs WHERE source_id=?")
+            .bind(source.to_string())
+            .fetch_one(&h.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+        // Unknown fields cannot persist prompts, paths, or tool input in structured metadata.
+        let mut malicious = serde_json::to_value(&request).unwrap();
+        malicious["beacon"]["prompt"] = serde_json::json!("secret");
+        let response = h
+            .app
+            .clone()
+            .oneshot(bearer(
+                json_request("POST", "/api/beacons", malicious),
+                &token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
     async fn migration_and_owner_authorization_work() {
         let harness = Harness::new(ChronoDuration::minutes(10)).await;
         let version: i64 = sqlx::query_scalar(
@@ -1499,7 +1719,7 @@ mod tests {
         .fetch_one(&harness.pool)
         .await
         .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
         let response = harness
             .app
             .clone()
@@ -1805,6 +2025,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let event_id = Uuid::new_v4();
         let ring = RingRequest {
+            beacon: None,
             event_id,
             message: Some("ready".into()),
             target_tags: vec!["phone".into()],
@@ -1875,6 +2096,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::CREATED);
         let ring = RingRequest {
+            beacon: None,
             event_id: Uuid::new_v4(),
             message: Some("x".repeat(MESSAGE_MAX + 1)),
             target_tags: vec![],
@@ -1889,6 +2111,7 @@ mod tests {
         let error: ApiError = body(response).await;
         assert_eq!(error.error.code, "validation_error");
         let ring = RingRequest {
+            beacon: None,
             event_id: Uuid::new_v4(),
             message: None,
             target_tags: vec![],
@@ -1942,6 +2165,7 @@ mod tests {
         assert!(created.receiver_token.starts_with("sb_recv_"));
 
         let ignored = RingRequest {
+            beacon: None,
             event_id: Uuid::new_v4(),
             message: Some("phone only".into()),
             target_tags: vec!["phone".into()],
@@ -1961,6 +2185,7 @@ mod tests {
         assert_eq!(accepted.matched_receivers, 0);
 
         let wanted = RingRequest {
+            beacon: None,
             event_id: Uuid::new_v4(),
             message: Some("needs attention".into()),
             target_tags: vec!["desk".into()],

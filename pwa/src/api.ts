@@ -28,6 +28,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  runs: () => request<import('./types').RunSnapshot>('/api/runs'),
+  clearRunInbox: () => request('/api/run-inbox', {method:'DELETE'}),
+  dismissRun: (source: string, event: string) => request('/api/run-inbox/'+encodeURIComponent(source)+'/'+encodeURIComponent(event),{method:'DELETE'}),
   bootstrapStatus: () => request<{ bootstrap_required: boolean; password_required: boolean }>('/api/owner/bootstrap/status'),
   setOwnerPassword: (bootstrap_token: string, password: string, reset = false) => request('/api/owner/bootstrap', { method: 'POST', body: JSON.stringify({ bootstrap_token, password, reset }) }),
   login: (password: string) => request('/api/owner/session', { method: 'POST', body: JSON.stringify({ password }) }),

@@ -17,7 +17,7 @@ function routeFetch(routes: Record<string, unknown>) {
 
 beforeEach(() => {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
-  history.replaceState(null, '', '/')
+  history.replaceState(null, '', '/?view=rings')
 })
 
 describe('owner states', () => {
@@ -50,7 +50,7 @@ describe('owner states', () => {
 
 describe('authenticated application', () => {
   function authenticated(extra: Record<string, unknown> = {}) {
-    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/pull-receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
+    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/runs': {runs:[],inbox:[]}, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/pull-receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
   }
 
   it('shows empty and populated ring history', async () => {

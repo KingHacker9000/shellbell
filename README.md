@@ -102,6 +102,15 @@ Start a new shell after installing shell integration.
 
 ## Everyday use
 
+### Opt-in agent and cluster tracking
+
+The run-tracking extension adds metadata-only Claude, Codex and Slurm collectors,
+a live Runs view, a clearable two-day inbox and dedicated desk-display receivers.
+Questions and approval requests can ping your devices without forwarding their
+text. Hooks spool locally; the existing paired daemon handles relay credentials
+and retry. See [Run tracking](docs/RUN_TRACKING.md) for setup, hook coverage,
+cluster SSH reuse, privacy and rollback details.
+
 Notify once after a qualifying command finishes and the prompt stays idle:
 
 ```sh

@@ -6,3 +6,8 @@ export type PullReceiver = { id: string; name: string; tags: string[]; enabled: 
 export type PullReceiverCreated = { receiver: PullReceiver; receiver_token: string }
 export type Settings = { history_retention_days: number; vapid_public_key: string }
 export type NotificationState = NotificationPermission | 'unsupported'
+
+export interface RunBeacon { collector: string; machine: string; run_id: string; state: string; observed_at: string; heartbeat: boolean; stale_after_seconds: number }
+export interface TrackedRun { source_id: string; source_name: string; beacon: RunBeacon; stale: boolean; received_at: string }
+export interface RunInboxItem { source_id: string; event_id: string; source_name: string; beacon: RunBeacon; created_at: string }
+export interface RunSnapshot { runs: TrackedRun[]; inbox: RunInboxItem[] }

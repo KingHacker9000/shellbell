@@ -2,14 +2,14 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ApiClientError, api } from './api'
 import type { NotificationState, Pairing, PullReceiver, Receiver, Ring, Source } from './types'
 
-type View = 'rings' | 'sources' | 'receivers' | 'settings'
+type View = 'runs' | 'rings' | 'sources' | 'receivers' | 'settings'
 type AuthState = 'loading' | 'setup' | 'login' | 'reset' | 'authenticated' | 'expired'
 
 export default function App() {
   const initialView = new URLSearchParams(location.search).get('view') as View | null
   const [auth, setAuth] = useState<AuthState>('loading')
   const [bootstrapRequired, setBootstrapRequired] = useState(false)
-  const [view, setView] = useState<View>(['rings', 'sources', 'receivers', 'settings'].includes(initialView ?? '') ? initialView! : 'rings')
+  const [view, setView] = useState<View>(['runs', 'rings', 'sources', 'receivers', 'settings'].includes(initialView ?? '') ? initialView! : 'runs')
   const [offline, setOffline] = useState(!navigator.onLine)
   const [error, setError] = useState('')
 
@@ -42,8 +42,8 @@ export default function App() {
     <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><span className="privacy">Private terminal notifications</span></header>
     {offline && <div className="banner" role="status">Offline — showing the current view; changes will not work.</div>}
     {error && <div className="banner error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-    <main>{view === 'rings' ? <Rings onError={handleError} /> : view === 'sources' ? <Sources onError={handleError} /> : view === 'receivers' ? <Receivers onError={handleError} /> : <SettingsView onError={handleError} onLogout={() => api.logout().then(() => setAuth('login')).catch(handleError)} />}</main>
-    <nav aria-label="Main navigation">{(['rings', 'sources', 'receivers', 'settings'] as View[]).map((item) => <button className={view === item ? 'active' : ''} key={item} onClick={() => navigate(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    <main>{view === 'runs' ? <Runs onError={handleError} /> : view === 'rings' ? <Rings onError={handleError} /> : view === 'sources' ? <Sources onError={handleError} /> : view === 'receivers' ? <Receivers onError={handleError} /> : <SettingsView onError={handleError} onLogout={() => api.logout().then(() => setAuth('login')).catch(handleError)} />}</main>
+    <nav aria-label="Main navigation">{(['runs', 'rings', 'sources', 'receivers', 'settings'] as View[]).map((item) => <button className={view === item ? 'active' : ''} key={item} onClick={() => navigate(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
   </div>
 }
 
@@ -150,4 +150,19 @@ function SettingsView({ onError, onLogout }: { onError: (error: unknown) => void
 function SettingsForm({ initialDays, onSave, onLogout }: { initialDays: number; onSave: (days: number) => void; onLogout: () => void }) {
   const [days, setDays] = useState(initialDays)
   return <div className="card settings"><label>Ring history retention (days)<input type="number" min="1" max="90" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button onClick={() => onSave(days)}>Save settings</button><hr /><button className="secondary" onClick={onLogout}>Sign out and revoke this session</button></div>
+}
+
+function Runs({ onError }: { onError: (error: unknown) => void }) {
+  const loader=useCallback(()=>api.runs(),[])
+  const {data,refresh}=useLoad(loader,onError,10000)
+  const [filter,setFilter]=useState('all')
+  const label=(state:string)=>state.replaceAll('_',' ')
+  const collectors=[...new Set(data?.runs.map(r=>r.beacon.collector)??[])]
+  const runs=data?.runs.filter(r=>filter==='all'||r.beacon.collector===filter)??[]
+  return <Section title="Runs" detail="Agents and cluster jobs across your machines. Only explicit status metadata is collected.">
+    <label>Collector<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All collectors</option>{collectors.map(c=><option key={c}>{c}</option>)}</select></label>
+    {!data?<Loading/>:<><h2>Live status</h2>{runs.length===0?<Empty>No run beacons yet. Enable a collector on a paired machine.</Empty>:<div className="list">{runs.map(r=><article className="list-item" key={[r.source_id,r.beacon.collector,r.beacon.machine,r.beacon.run_id].join(':')}><div><strong>{r.beacon.collector} · {r.beacon.machine}</strong><p>{r.beacon.run_id}</p><small>Observed {new Date(r.beacon.observed_at).toLocaleString()}</small></div><span role="status">{r.stale?'Stale · last '+label(r.beacon.state):label(r.beacon.state)}</span></article>)}</div>}
+    <div className="section-title"><h2>Inbox · last 2 days</h2><button className="secondary" disabled={!data.inbox.length} onClick={()=>api.clearRunInbox().then(refresh).catch(onError)}>Clear inbox</button></div>
+    {data.inbox.length===0?<Empty>Nothing needs your attention.</Empty>:<div className="list">{data.inbox.map(e=><article className="list-item" key={e.source_id+e.event_id}><div><strong>{e.beacon.collector} · {label(e.beacon.state)}</strong><p>{e.beacon.machine} · {e.beacon.run_id}</p><small>{new Date(e.beacon.observed_at).toLocaleString()}</small></div><button className="secondary" onClick={()=>api.dismissRun(e.source_id,e.event_id).then(refresh).catch(onError)}>Dismiss</button></article>)}</div>}</>}
+  </Section>
 }
