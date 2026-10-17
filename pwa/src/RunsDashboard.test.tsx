@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import RunsDashboard from './RunsDashboard'
@@ -10,10 +10,11 @@ function run(collector: string, machine: string, run_id: string, state: string):
 }
 const work = [run('claude', 'desktop', 'question-session', 'waiting_input'), run('codex', 'pi', 'active-session', 'running'), run('slurm', 'cluster', '123', 'queued'), run('slurm', 'cluster', '124', 'finished')]
 const collectors = [run('slurm-collector', 'cluster', 'connection', 'running'), run('slurm-collector', 'dgp', 'connection', 'running')]
-function setup(snapshot: RunSnapshot) {
+function setup(snapshot: RunSnapshot, showAll = true) {
   const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => Promise.resolve(new Response(init?.method === 'DELETE' ? null : JSON.stringify(snapshot), { status: init?.method === 'DELETE' ? 204 : 200 })))
   vi.stubGlobal('fetch', fetchMock)
   render(<RunsDashboard onError={vi.fn()} onAddSource={vi.fn()}/>)
+  if (showAll) fireEvent.click(screen.getByRole('switch', { name: 'Active only' }))
   return fetchMock
 }
 describe('run dashboard', () => {
@@ -95,6 +96,35 @@ describe('run dashboard', () => {
     expect(within(workload).queryByText('Job #124')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('switch', { name: 'Active only' }))
     expect(within(workload).getAllByRole('article')).toHaveLength(7)
+  })
+
+  it('defaults to active only and ticks running jobs until their freshness deadline', async () => {
+    vi.useFakeTimers()
+    const running = run('slurm', 'cluster', 'clock', 'running')
+    running.beacon.observed_at = new Date().toISOString()
+    running.beacon.stale_after_seconds = 3
+    running.beacon.job = { name: 'clock', partition: 'gpu', elapsed: '00:10:00', time_limit: '02:00:00', cpus: 4, min_memory: '48G', tres_per_node: '', start_time: 'N/A', node_reason: 'node1' }
+    const queued = run('slurm', 'cluster', 'queue-clock', 'queued')
+    queued.beacon.job = { ...running.beacon.job, name: 'queue-clock', elapsed: '00:00:00' }
+    const done = run('slurm', 'cluster', 'done-clock', 'finished')
+    done.beacon.job = { ...running.beacon.job, name: 'done-clock' }
+    const fetchMock = setup({ runs: [running, queued, done], inbox: [] }, false)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('heading', { name: 'clock' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Active only' })).toBeChecked()
+    expect(screen.queryByText('done-clock')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Active only' }))
+    const baseline = fetchMock.mock.calls.length
+    try {
+      await act(async () => { vi.advanceTimersByTime(2000) })
+      expect(screen.getByText('00:10:02')).toBeInTheDocument()
+      expect(fetchMock.mock.calls).toHaveLength(baseline)
+      expect(screen.getByText('00:00:00')).toBeInTheDocument()
+      expect(screen.getByText('10m')).toBeInTheDocument()
+      await act(async () => { vi.advanceTimersByTime(5000) })
+      expect(screen.getByText('00:10:03')).toBeInTheDocument()
+      expect(screen.getByText('10m')).toBeInTheDocument()
+    } finally { vi.useRealTimers() }
   })
 
 })

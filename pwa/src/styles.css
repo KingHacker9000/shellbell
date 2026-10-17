@@ -48,7 +48,7 @@ code { background: #273650; border-radius: .3rem; padding: .15rem .3rem; }
 
 /* A quieter application frame for the run dashboard and its management pages. */
 :root{background:#101217;color:#e6e9ef}
-.app>header{height:64px;background:#12151b;border-color:#272c35;padding-inline:27px}
+.app>header{position:sticky;top:0;z-index:50;height:64px;background:#12151b;border-color:#272c35;padding-inline:27px}
 .app>header>div{font-size:15px;gap:10px;letter-spacing:-.3px}
 .app>header .brand-mark{display:grid;place-items:center;color:#aedac7;font-size:20px;background:#26392f;width:29px;height:29px;border:1px solid #3b5547;border-radius:8px}
 .app>header .privacy{font-size:9px;letter-spacing:.07em;color:#778495}
