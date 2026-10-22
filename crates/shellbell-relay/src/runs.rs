@@ -115,7 +115,8 @@ async fn snapshot(
             inbox.push(serde_json::json!({"source_id":row.get::<String,_>("source_id"),"event_id":row.get::<String,_>("event_id"),"source_name":row.get::<String,_>("source_name"),"beacon":serde_json::from_str::<serde_json::Value>(row.get("beacon_json")).unwrap_or_default(),"created_at":row.get::<String,_>("created_at")}));
         }
     }
-    Ok(serde_json::json!({"runs":runs,"inbox":inbox}))
+    let dnd = crate::dnd::status(&state.pool).await?;
+    Ok(serde_json::json!({"runs":runs,"inbox":inbox,"dnd":dnd}))
 }
 pub(super) async fn clear(
     State(state): State<AppState>,

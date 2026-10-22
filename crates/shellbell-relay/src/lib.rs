@@ -1680,6 +1680,18 @@ mod tests {
         assert!(status.active);
         assert!(status.until.is_none());
         assert!(dnd::status(&h.pool).await.unwrap().active);
+        let snapshot: serde_json::Value = body(
+            h.app
+                .clone()
+                .oneshot(bearer(
+                    json_request("GET", "/api/receiver-runs", serde_json::json!({})),
+                    &receiver.receiver_token,
+                ))
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(snapshot["dnd"]["active"], true);
         assert_eq!(
             send(request()).await.unwrap().status(),
             StatusCode::ACCEPTED
