@@ -8,7 +8,7 @@ const json = (value: unknown, status = 200) => Promise.resolve(new Response(stat
 function routeFetch(routes: Record<string, unknown>) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input); const key = `${init?.method ?? 'GET'} ${path}`
-    const value = routes[key] ?? routes[path]
+    const value = routes[key] ?? routes[path] ?? (path === '/api/dnd' ? { active: false, until: null } : undefined)
     if (value instanceof Error) return Promise.reject(value)
     if (value === undefined) return json({ error: { code: 'not_found', message: key } }, 404)
     return json(value)

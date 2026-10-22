@@ -1,3 +1,4 @@
+mod dnd;
 pub mod push;
 mod runs;
 
@@ -235,6 +236,7 @@ pub async fn build_app(
             axum::routing::delete(runs::dismiss),
         )
         .route("/api/receiver-runs", get(runs::receiver_list))
+        .route("/api/dnd", get(dnd::get).put(dnd::update))
         .route("/api/settings", get(get_settings).put(update_settings))
         .layer(DefaultBodyLimit::max(16 * 1024))
         .layer(CompressionLayer::new())
@@ -957,7 +959,7 @@ async fn receiver_feed(
     // Scan a bounded batch so unmatched tagged rings can still advance the cursor.
     let scan_limit = (limit * 20).clamp(100, 2000) as i64;
     let rows = sqlx::query(
-        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at,beacon_json FROM rings WHERE id>? AND (beacon_json IS NULL OR (created_at>? AND json_extract(beacon_json,'$.heartbeat')=0 AND json_extract(beacon_json,'$.state') IN ('waiting_input','waiting_approval','finished','failed','cancelled','needs_reauth'))) ORDER BY id ASC LIMIT ?",
+        "SELECT id,event_id,source_id,source_name,message,target_tags_json,created_at,beacon_json,notifications_muted FROM rings WHERE id>? AND (beacon_json IS NULL OR (created_at>? AND json_extract(beacon_json,'$.heartbeat')=0 AND json_extract(beacon_json,'$.state') IN ('waiting_input','waiting_approval','finished','failed','cancelled','needs_reauth'))) ORDER BY id ASC LIMIT ?",
     )
     .bind(floor)
     .bind(Utc::now()-ChronoDuration::days(2))
@@ -966,6 +968,7 @@ async fn receiver_feed(
     .await
     .map_err(AppError::db)?;
 
+    let muted = dnd::status(&state.pool).await?.active;
     let mut rings = Vec::new();
     let mut cursor = floor;
 
@@ -976,7 +979,10 @@ async fn receiver_feed(
 
         cursor = ring_id;
 
-        if !tags_match(&receiver.tags, &target_tags) {
+        if muted
+            || row.get::<i64, _>("notifications_muted") != 0
+            || !tags_match(&receiver.tags, &target_tags)
+        {
             continue;
         }
 
@@ -1193,6 +1199,8 @@ async fn submit_ring(
         .map_err(AppError::bad)?;
     let tags = validate_tags(&request.target_tags).map_err(AppError::bad)?;
     let ring_guard = state.ring_lock.lock().await;
+    let muted = dnd::status(&state.pool).await?.active;
+    let notify = notify && !muted;
     let mut tx = state.pool.begin().await.map_err(AppError::db)?;
     if let Some(row) = sqlx::query(
         "SELECT created_at,matched_receivers FROM rings WHERE source_id=? AND event_id=?",
@@ -1251,6 +1259,13 @@ async fn submit_ring(
     let result = sqlx::query("INSERT INTO rings(event_id,source_id,source_name,message,target_tags_json,created_at,matched_receivers) VALUES(?,?,?,?,?,?,?)")
         .bind(request.event_id.to_string()).bind(source.id.to_string()).bind(&source.display_name).bind(&message).bind(serde_json::to_string(&tags).unwrap()).bind(now).bind(matched_receivers as i64).execute(&mut *tx).await.map_err(AppError::db)?;
     let ring_id = result.last_insert_rowid();
+    if muted {
+        sqlx::query("UPDATE rings SET notifications_muted=1 WHERE id=?")
+            .bind(ring_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::db)?;
+    }
     if let Some(beacon) = &request.beacon {
         runs::record(&mut tx, source.id, request.event_id, beacon, &tags, now).await?;
     }
@@ -1293,6 +1308,17 @@ async fn submit_ring(
     })
     .map_err(|_| AppError::bad("could not serialize notification"))?;
     for (receiver_id, subscription) in receivers.iter() {
+        let _delivery_guard = state.ring_lock.lock().await;
+        let suppressed: i64 =
+            sqlx::query_scalar("SELECT notifications_muted FROM rings WHERE id=?")
+                .bind(ring_id)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(AppError::db)?;
+        if suppressed != 0 || dnd::status(&state.pool).await?.active {
+            sqlx::query("UPDATE deliveries SET attempted_at=?,status='transient_failure',diagnostic='Suppressed by DND; will not retry' WHERE ring_id=? AND receiver_id=?").bind(Utc::now()).bind(ring_id).bind(receiver_id).execute(&state.pool).await.map_err(AppError::db)?;
+            continue;
+        }
         let outcome = state.push.deliver(subscription, &payload).await;
         let (status, diagnostic, permanent) = match outcome {
             DeliveryOutcome::Delivered => ("delivered", None, false),
@@ -1538,6 +1564,195 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dnd_suppresses_push_and_pull_preserves_history_and_expires() {
+        let h = Harness::new(ChronoDuration::minutes(10)).await;
+        let pair = h.pair("source").await;
+        let paired = h.approve_and_poll(&pair).await;
+        let token = paired.source_token.unwrap();
+        let response = h
+            .app
+            .clone()
+            .oneshot(h.owner(
+                json_request(
+                    "POST",
+                    "/api/receivers",
+                    ReceiverCreateRequest {
+                        name: "browser".into(),
+                        tags: vec![],
+                        subscription: PushSubscriptionInput {
+                            endpoint: "https://push.example/dnd".into(),
+                            p256dh: "key".into(),
+                            auth: "auth".into(),
+                        },
+                    },
+                ),
+                true,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = h
+            .app
+            .clone()
+            .oneshot(h.owner(
+                json_request(
+                    "POST",
+                    "/api/pull-receivers",
+                    PullReceiverCreateRequest {
+                        name: "desk".into(),
+                        tags: vec![],
+                    },
+                ),
+                true,
+            ))
+            .await
+            .unwrap();
+        let receiver: PullReceiverCreatedResponse = body(response).await;
+        let request = || RingRequest {
+            beacon: None,
+            event_id: Uuid::new_v4(),
+            message: Some("ready".into()),
+            target_tags: vec![],
+        };
+        let send = |ring: RingRequest| {
+            h.app
+                .clone()
+                .oneshot(bearer(json_request("POST", "/api/rings", ring), &token))
+        };
+        assert_eq!(
+            send(request()).await.unwrap().status(),
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(h.fake.attempts.lock().await.len(), 1);
+        // Owner session and CSRF are both required.
+        assert_eq!(
+            h.app
+                .clone()
+                .oneshot(json_request(
+                    "PUT",
+                    "/api/dnd",
+                    serde_json::json!({"enabled":true})
+                ))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            h.app
+                .clone()
+                .oneshot(h.owner(
+                    json_request("PUT", "/api/dnd", serde_json::json!({"enabled":true})),
+                    false
+                ))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            h.app
+                .clone()
+                .oneshot(h.owner(
+                    json_request(
+                        "PUT",
+                        "/api/dnd",
+                        serde_json::json!({"enabled":true,"minutes":0})
+                    ),
+                    true
+                ))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+        let response = h
+            .app
+            .clone()
+            .oneshot(h.owner(
+                json_request("PUT", "/api/dnd", serde_json::json!({"enabled":true})),
+                true,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let status: dnd::DndStatus = body(response).await;
+        assert!(status.active);
+        assert!(status.until.is_none());
+        assert!(dnd::status(&h.pool).await.unwrap().active);
+        assert_eq!(
+            send(request()).await.unwrap().status(),
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(h.fake.attempts.lock().await.len(), 1);
+        let feed_request = || {
+            bearer(
+                json_request("GET", "/api/receiver-feed", serde_json::json!({})),
+                &receiver.receiver_token,
+            )
+        };
+        let feed: ReceiverFeedResponse =
+            body(h.app.clone().oneshot(feed_request()).await.unwrap()).await;
+        assert!(feed.rings.is_empty());
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM rings")
+                .fetch_one(&h.pool)
+                .await
+                .unwrap(),
+            2
+        );
+        let response = h
+            .app
+            .clone()
+            .oneshot(h.owner(
+                json_request("PUT", "/api/dnd", serde_json::json!({"enabled":false})),
+                true,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let feed: ReceiverFeedResponse =
+            body(h.app.clone().oneshot(feed_request()).await.unwrap()).await;
+        assert!(feed.rings.is_empty(), "DND backlog must never replay");
+        assert_eq!(
+            send(request()).await.unwrap().status(),
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(h.fake.attempts.lock().await.len(), 2);
+        let feed: ReceiverFeedResponse =
+            body(h.app.clone().oneshot(feed_request()).await.unwrap()).await;
+        assert_eq!(feed.rings.len(), 1);
+        let response = h
+            .app
+            .clone()
+            .oneshot(h.owner(
+                json_request(
+                    "PUT",
+                    "/api/dnd",
+                    serde_json::json!({"enabled":true,"minutes":15}),
+                ),
+                true,
+            ))
+            .await
+            .unwrap();
+        let status: dnd::DndStatus = body(response).await;
+        assert!(status.until.unwrap() > Utc::now() + ChronoDuration::minutes(14));
+        let expired =
+            serde_json::json!({"active":true,"until":Utc::now()-ChronoDuration::seconds(1)});
+        sqlx::query("UPDATE settings SET value=? WHERE key='dnd'")
+            .bind(expired.to_string())
+            .execute(&h.pool)
+            .await
+            .unwrap();
+        assert!(!dnd::status(&h.pool).await.unwrap().active);
+        assert_eq!(
+            send(request()).await.unwrap().status(),
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(h.fake.attempts.lock().await.len(), 3);
+    }
+
+    #[tokio::test]
     async fn run_beacons_are_private_idempotent_ordered_and_clearable() {
         let h = Harness::new(ChronoDuration::minutes(10)).await;
         let pair = h.pair("source").await;
@@ -1772,7 +1987,7 @@ mod tests {
         .fetch_one(&harness.pool)
         .await
         .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
         let response = harness
             .app
             .clone()

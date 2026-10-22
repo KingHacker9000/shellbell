@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ApiClientError, api } from './api'
 import RunsDashboard from './RunsDashboard'
+import DndControl from './DndControl'
 import type { NotificationState, Pairing, PullReceiver, Receiver, Ring, Source } from './types'
 
 type View = 'runs' | 'rings' | 'sources' | 'receivers' | 'settings'
@@ -40,7 +41,7 @@ export default function App() {
   if (auth === 'login' || auth === 'expired') return <PasswordScreen title={auth === 'expired' ? 'Owner session expired' : 'Owner sign in'} detail="Enter your owner password. The bootstrap token is only needed for setup or recovery." button="Sign in" onSubmit={(password) => api.login(password).then(() => { setError(''); setAuth('authenticated') }).catch(handleError)} onReset={() => { setError(''); setAuth('reset') }} error={error} />
 
   return <div className="app">
-    <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><span className="privacy">Private terminal notifications</span></header>
+    <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><div className="header-tools"><span className="privacy">Private terminal notifications</span><DndControl onError={handleError}/></div></header>
     {offline && <div className="banner" role="status">Offline — showing the current view; changes will not work.</div>}
     {error && <div className="banner error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
     <main>{view === 'runs' ? <RunsDashboard onError={handleError} onAddSource={() => navigate('sources')} /> : view === 'rings' ? <Rings onError={handleError} /> : view === 'sources' ? <Sources onError={handleError} /> : view === 'receivers' ? <Receivers onError={handleError} /> : <SettingsView onError={handleError} onLogout={() => api.logout().then(() => setAuth('login')).catch(handleError)} />}</main>

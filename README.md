@@ -229,3 +229,19 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before openin
 ## License
 
 Shellbell is available under the [MIT License](LICENSE).
+
+### Do not disturb
+
+Use **DND** in the web app header to pause notifications across all receivers.
+Choose a preset, a custom duration (1 minute to 7 days), or **Until I turn it off**.
+**Resume notifications** ends DND early. The relay persists the deadline and
+resumes automatically, even if the browser is closed or the relay restarts.
+Push and pull/Totem alerts are suppressed; runs and history continue updating.
+Muted alerts, including pending pull backlog when DND begins, do not replay.
+Already delivered notifications cannot be recalled.
+
+Owner-authenticated `GET /api/dnd` returns `{ "active": false, "until": null }`.
+CSRF-protected `PUT /api/dnd` accepts `{ "enabled": true, "minutes": 60 }`,
+`{ "enabled": true, "minutes": null }` for indefinite DND, or
+`{ "enabled": false }` to resume. Migration 0004 adds notification suppression
+metadata; rollback requires restoring the matching image and database together.
