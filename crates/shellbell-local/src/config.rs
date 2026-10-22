@@ -257,7 +257,11 @@ impl LocalPaths {
 }
 
 fn valid_xdg_runtime_dir() -> Option<PathBuf> {
-    let path = PathBuf::from(env::var_os("XDG_RUNTIME_DIR")?);
+    // Noninteractive SSH often omits XDG_RUNTIME_DIR, while the user service has it.
+    // Reuse the same OS-owned runtime directory after the usual ownership checks.
+    let path = env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(format!("/run/user/{}", effective_uid())));
     let metadata = fs::metadata(&path).ok()?;
     #[cfg(unix)]
     {

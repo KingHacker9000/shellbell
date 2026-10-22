@@ -8,7 +8,7 @@ const json = (value: unknown, status = 200) => Promise.resolve(new Response(stat
 function routeFetch(routes: Record<string, unknown>) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input); const key = `${init?.method ?? 'GET'} ${path}`
-    const value = routes[key] ?? routes[path]
+    const value = routes[key] ?? routes[path] ?? (path === '/api/dnd' ? { active: false, until: null } : undefined)
     if (value instanceof Error) return Promise.reject(value)
     if (value === undefined) return json({ error: { code: 'not_found', message: key } }, 404)
     return json(value)
@@ -17,7 +17,7 @@ function routeFetch(routes: Record<string, unknown>) {
 
 beforeEach(() => {
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
-  history.replaceState(null, '', '/')
+  history.replaceState(null, '', '/?view=rings')
 })
 
 describe('owner states', () => {
@@ -50,7 +50,7 @@ describe('owner states', () => {
 
 describe('authenticated application', () => {
   function authenticated(extra: Record<string, unknown> = {}) {
-    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/pull-receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
+    return routeFetch({ '/api/owner/bootstrap/status': { bootstrap_required: false, password_required: false }, '/api/owner/session': { authenticated: true }, '/api/runs': {runs:[],inbox:[]}, '/api/rings?limit=100': { rings: [] }, '/api/pairings': { pairings: [] }, '/api/sources': { sources: [] }, '/api/receivers': { receivers: [] }, '/api/pull-receivers': { receivers: [] }, '/api/settings': { history_retention_days: 14, vapid_public_key: 'test' }, ...extra })
   }
 
   it('shows empty and populated ring history', async () => {

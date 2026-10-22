@@ -102,6 +102,15 @@ Start a new shell after installing shell integration.
 
 ## Everyday use
 
+### Opt-in agent and cluster tracking
+
+The run-tracking extension adds metadata-only Claude, Codex and Slurm collectors,
+a live Runs view, a clearable two-day inbox and dedicated desk-display receivers.
+Questions and approval requests can ping your devices without forwarding their
+text. Hooks spool locally; the existing paired daemon handles relay credentials
+and retry. See [Run tracking](docs/RUN_TRACKING.md) for setup, hook coverage,
+cluster SSH reuse, privacy and rollback details.
+
 Notify once after a qualifying command finishes and the prompt stays idle:
 
 ```sh
@@ -220,3 +229,19 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before openin
 ## License
 
 Shellbell is available under the [MIT License](LICENSE).
+
+### Do not disturb
+
+Use **DND** in the web app header to pause notifications across all receivers.
+Choose a preset, a custom duration (1 minute to 7 days), or **Until I turn it off**.
+**Resume notifications** ends DND early. The relay persists the deadline and
+resumes automatically, even if the browser is closed or the relay restarts.
+Push and pull/Totem alerts are suppressed; runs and history continue updating.
+Muted alerts, including pending pull backlog when DND begins, do not replay.
+Already delivered notifications cannot be recalled.
+
+Owner-authenticated `GET /api/dnd` returns `{ "active": false, "until": null }`.
+CSRF-protected `PUT /api/dnd` accepts `{ "enabled": true, "minutes": 60 }`,
+`{ "enabled": true, "minutes": null }` for indefinite DND, or
+`{ "enabled": false }` to resume. Migration 0004 adds notification suppression
+metadata; rollback requires restoring the matching image and database together.

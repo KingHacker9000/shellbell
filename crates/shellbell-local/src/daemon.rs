@@ -122,6 +122,7 @@ where
                 }
             }
             _ = delivery_tick.tick() => {
+                drain_beacons(&context).await?;
                 if let Err(error) = deliver_one(&context).await {
                     // A local store failure is fatal; network failures are persisted by deliver_one.
                     break Err(error);
@@ -447,7 +448,14 @@ async fn submit_ring(context: &DaemonContext, event: &QueuedRing) -> DeliveryRes
         Ok(credentials) => credentials,
         Err(error) => return DeliveryResult::TransientFailure(error.to_string()),
     };
-    let endpoint = match endpoint(&credentials.relay_url, "api/rings") {
+    let endpoint = match endpoint(
+        &credentials.relay_url,
+        if event.beacon.is_some() {
+            "api/beacons"
+        } else {
+            "api/rings"
+        },
+    ) {
         Ok(endpoint) => endpoint,
         Err(_error) => return DeliveryResult::PermanentFailure,
     };
@@ -456,6 +464,7 @@ async fn submit_ring(context: &DaemonContext, event: &QueuedRing) -> DeliveryRes
         .post(endpoint)
         .bearer_auth(&credentials.source_token)
         .json(&RingRequest {
+            beacon: event.beacon.clone(),
             event_id: event.event_id,
             message: event.message.clone(),
             target_tags: event.targets.clone(),
@@ -536,6 +545,48 @@ pub async fn ping(paths: &LocalPaths) -> Result<DaemonStatus> {
     }
 }
 
+// Hooks write only allowlisted metadata here and return without contacting the network.
+async fn drain_beacons(context: &DaemonContext) -> Result<()> {
+    let directory = context.paths.state_dir.join("beacons");
+    crate::config::ensure_private_dir(&directory)?;
+    let mut entries = tokio::fs::read_dir(&directory).await?;
+    let mut processed = 0;
+    while let Some(entry) = entries.next_entry().await? {
+        if processed >= 100 {
+            break;
+        }
+        if entry.path().extension().is_none_or(|s| s != "json") {
+            continue;
+        }
+        processed += 1;
+        let metadata = entry.metadata().await?;
+        if !metadata.is_file() || metadata.len() > 8192 {
+            continue;
+        }
+        let data = tokio::fs::read(entry.path()).await?;
+        let request = serde_json::from_slice::<RingRequest>(&data);
+        if let Ok(request) = request
+            && request
+                .beacon
+                .as_ref()
+                .is_some_and(|b| b.validate().is_ok())
+            && shellbell_protocol::validate_tags(&request.target_tags).is_ok()
+        {
+            context
+                .store
+                .enqueue_beacon(
+                    &request,
+                    wall_ms(),
+                    context.config.queue_limit,
+                    context.config.event_max_age,
+                )
+                .await?;
+        }
+        tokio::fs::remove_file(entry.path()).await?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -551,7 +602,9 @@ mod tests {
     }
 
     async fn wait_for_socket(path: &Path) {
-        for _ in 0..100 {
+        // Concurrent SQLite migrations and filesystem sync can exceed 500 ms on
+        // a loaded CI runner. Wait for readiness without delaying healthy starts.
+        for _ in 0..1000 {
             if path.exists() {
                 return;
             }

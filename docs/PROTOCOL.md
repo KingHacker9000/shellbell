@@ -1,5 +1,9 @@
 # HTTP protocol
 
+The optional structured run-beacon extension, live status, inbox and scoped
+receiver snapshot are documented in [RUN_TRACKING.md](RUN_TRACKING.md). The
+legacy shell activity contract below is unchanged.
+
 Shell activity metadata stays local. Automatic and manual delivery use the same idempotent request:
 
 ```json

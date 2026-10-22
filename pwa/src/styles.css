@@ -45,3 +45,20 @@ fieldset { display: flex; border: 0; padding: .8rem 0; gap: 1rem; flex-wrap: wra
 .settings hr { border: 0; border-top: 1px solid #26344c; width: 100%; }
 code { background: #273650; border-radius: .3rem; padding: .15rem .3rem; }
 @media (max-width: 650px) { .privacy { display: none; } .list-item { align-items: flex-start; flex-direction: column; } .actions { justify-content: flex-start; } nav { overflow-x: auto; justify-content: flex-start; } nav button { min-width: auto; flex: 1; padding-inline: .5rem; } }
+
+/* A quieter application frame for the run dashboard and its management pages. */
+:root{background:#101217;color:#e6e9ef}
+.app>header{position:sticky;top:0;z-index:50;height:64px;background:#12151b;border-color:#272c35;padding-inline:27px}
+.app>header>div{font-size:15px;gap:10px;letter-spacing:-.3px}
+.app>header .brand-mark{display:grid;place-items:center;color:#aedac7;font-size:20px;background:#26392f;width:29px;height:29px;border:1px solid #3b5547;border-radius:8px}
+.app>header .privacy{font-size:9px;letter-spacing:.07em;color:#778495}
+.app>main{max-width:1440px;padding:30px 27px 40px}
+.app>nav{background:#14171e;border-color:#2b3039}
+.app>nav button{font-size:11px;font-weight:500;color:#8390a3}
+.app>nav button.active{background:#252e31;color:#b7ddcc}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #91cab2;outline-offset:3px}
+input:focus-visible{outline:2px solid #91cab2;outline-offset:1px}
+@media(min-width:1100px){.app{padding-bottom:0}.app>nav{top:64px;bottom:0;left:0;right:auto;width:184px;flex-direction:column;justify-content:flex-start;align-items:stretch;border-top:0;border-right:1px solid #272c35;padding:29px 12px;gap:7px}.app>nav button{display:flex;gap:12px;align-items:center;text-align:left;min-width:0;padding:12px 15px;border-radius:7px;font-size:11px;letter-spacing:.05px}.app>nav button::before{content:'◫';font-size:16px;font-weight:400;line-height:1;opacity:.8;width:16px;text-align:center}.app>nav button:nth-child(2)::before{content:'⌁'}.app>nav button:nth-child(3)::before{content:'◈'}.app>nav button:nth-child(4)::before{content:'⇄'}.app>nav button:nth-child(5)::before{content:'⚙'}.app>nav button:last-child{margin-top:auto}.app>nav button.active{background:#26322f;color:#b0ddc7;box-shadow:inset 2px 0 #88c4a8}.app>main{margin:0 24px 0 211px;width:calc(100% - 235px);padding:35px 14px 45px}.app>header{padding-inline:24px}.app>header .privacy{padding-right:14px}}
+@media(max-width:520px){.app>main{padding:25px 16px 30px}.app>header{padding:0 17px;height:58px}.app>nav{padding:8px 5px 10px;gap:2px}.app>nav button{font-size:10px;padding:10px 8px}.app{padding-bottom:65px}}
+
+.app>header .header-tools{display:flex;gap:18px;align-items:center}.dnd-control{position:relative;font-size:12px;letter-spacing:0}.dnd-control>summary{list-style:none;cursor:pointer;border:1px solid #414955;border-radius:8px;padding:8px 12px;color:#d7dce5;white-space:nowrap;background:#1b2029}.dnd-control>summary::-webkit-details-marker{display:none}.dnd-control>summary:focus-visible{outline:2px solid #91cab2;outline-offset:3px}.dnd-active>summary{color:#f1ce8e;border-color:#a78951;background:#3b3020}.dnd-popover{position:absolute;top:calc(100% + 12px);right:0;width:min(330px,calc(100vw - 32px));padding:20px;border:1px solid #4c5361;border-radius:12px;background:#191e27;box-shadow:0 14px 50px #0009;color:#e6e9ef;white-space:normal}.dnd-popover h2{font-size:17px;margin:0 0 12px}.dnd-popover p{font-size:12px;line-height:1.6}.dnd-popover .dnd-detail{color:#a5afbe;font-size:11px}.dnd-popover form{display:grid;gap:12px;margin-top:16px}.dnd-popover label{font-size:12px}.dnd-popover select{width:100%;padding:9px;border:1px solid #4a5568;border-radius:6px;background:#10151d;color:#fff;font:inherit}.dnd-popover button{font-size:12px;background:#a7d8c3;color:#122b20}.dnd-popover button.secondary{background:#303a49;color:#f0f3f8}@media(max-width:520px){.app>header .header-tools{gap:5px}.dnd-control>summary{font-size:11px;padding:7px 10px}}

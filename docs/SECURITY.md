@@ -10,8 +10,16 @@ Local-only session data can include UUID, shell PID/type, TTY, arm mode/state, b
 
 ## Local controls
 
+Opt-in run tracking extends the relay contract with allowlisted collector,
+machine, opaque run identifier, explicitly reported lifecycle/scheduler state and
+timestamps. It does not infer terminal outcomes. Native hook inputs are reduced
+to this allowlist before spooling; prompts, questions, responses, paths, tool
+arguments and raw events are never persisted or forwarded. Unknown beacon fields
+are rejected. A dedicated receiver may read only tag-matched live status and
+alerts. See [RUN_TRACKING.md](RUN_TRACKING.md) for bounds and retention.
+
 - Runtime/config/state directories are forced to `0700`; credentials, local SQLite, hooks, unit, and socket are `0600`.
-- `$XDG_RUNTIME_DIR` is used only when it is a directory owned by the effective UID and not group/other writable. The fallback is `/tmp/shellbell-<uid>`, created `0700`.
+- `$XDG_RUNTIME_DIR`, or `/run/user/<uid>` when SSH omits that variable, is used only when it is a directory owned by the effective UID and not group/other writable. The fallback is `/tmp/shellbell-<uid>`, created `0700`.
 - The server obtains `SO_PEERCRED` through the Unix stream and rejects a UID other than its effective UID.
 - IPC is JSON-line, version 1, capped at 8 KiB, strict about known fields, validated, and timeout-bounded.
 - Hook errors and daemon absence fail open so prompt rendering is never dependent on Shellbell.

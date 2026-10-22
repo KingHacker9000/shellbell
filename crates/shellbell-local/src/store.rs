@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedRing {
+    pub beacon: Option<shellbell_protocol::RunBeacon>,
     pub event_id: Uuid,
     pub message: Option<String>,
     pub targets: Vec<String>,
@@ -61,12 +62,50 @@ impl Store {
         )
         .execute(&pool)
         .await?;
+        let columns = sqlx::query("PRAGMA table_info(ring_queue)")
+            .fetch_all(&pool)
+            .await?;
+        if !columns
+            .iter()
+            .any(|r| r.get::<String, _>("name") == "beacon_json")
+        {
+            sqlx::query("ALTER TABLE ring_queue ADD COLUMN beacon_json TEXT")
+                .execute(&pool)
+                .await?;
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
         }
         Ok(Self { pool })
+    }
+
+    pub async fn enqueue_beacon(
+        &self,
+        request: &shellbell_protocol::RingRequest,
+        now_ms: i64,
+        queue_limit: usize,
+        max_age: Duration,
+    ) -> Result<()> {
+        let action = ActivityAction {
+            event_id: request.event_id,
+            session_id: None,
+            message: None,
+            targets: request.target_tags.clone(),
+            automatic: false,
+            active_duration_ms: None,
+        };
+        let mut tx = self.pool.begin().await?;
+        prune_queue_in(&mut tx, now_ms, max_age).await?;
+        enqueue_in(&mut tx, &action, now_ms, queue_limit).await?;
+        sqlx::query("UPDATE ring_queue SET beacon_json=? WHERE event_id=?")
+            .bind(serde_json::to_string(&request.beacon)?)
+            .bind(request.event_id.to_string())
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     pub async fn save_sessions<'a>(
@@ -147,12 +186,16 @@ impl Store {
         event_max_age: Duration,
     ) -> Result<Option<QueuedRing>> {
         self.expire_old(now_ms, event_max_age).await?;
-        let row = sqlx::query("SELECT event_id,message,targets_json,created_at_ms,attempts FROM ring_queue WHERE status='pending' AND next_attempt_ms<=? ORDER BY created_at_ms LIMIT 1")
+        let row = sqlx::query("SELECT event_id,message,targets_json,created_at_ms,attempts,beacon_json FROM ring_queue WHERE status='pending' AND next_attempt_ms<=? ORDER BY created_at_ms LIMIT 1")
             .bind(now_ms)
             .fetch_optional(&self.pool)
             .await?;
         row.map(|row| {
             Ok(QueuedRing {
+                beacon: row
+                    .get::<Option<String>, _>("beacon_json")
+                    .map(|s| serde_json::from_str(&s))
+                    .transpose()?,
                 event_id: Uuid::parse_str(row.get("event_id"))?,
                 message: row.get("message"),
                 targets: serde_json::from_str(row.get("targets_json"))?,

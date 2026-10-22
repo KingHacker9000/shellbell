@@ -1,15 +1,17 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { ApiClientError, api } from './api'
+import RunsDashboard from './RunsDashboard'
+import DndControl from './DndControl'
 import type { NotificationState, Pairing, PullReceiver, Receiver, Ring, Source } from './types'
 
-type View = 'rings' | 'sources' | 'receivers' | 'settings'
+type View = 'runs' | 'rings' | 'sources' | 'receivers' | 'settings'
 type AuthState = 'loading' | 'setup' | 'login' | 'reset' | 'authenticated' | 'expired'
 
 export default function App() {
   const initialView = new URLSearchParams(location.search).get('view') as View | null
   const [auth, setAuth] = useState<AuthState>('loading')
   const [bootstrapRequired, setBootstrapRequired] = useState(false)
-  const [view, setView] = useState<View>(['rings', 'sources', 'receivers', 'settings'].includes(initialView ?? '') ? initialView! : 'rings')
+  const [view, setView] = useState<View>(['runs', 'rings', 'sources', 'receivers', 'settings'].includes(initialView ?? '') ? initialView! : 'runs')
   const [offline, setOffline] = useState(!navigator.onLine)
   const [error, setError] = useState('')
 
@@ -39,11 +41,11 @@ export default function App() {
   if (auth === 'login' || auth === 'expired') return <PasswordScreen title={auth === 'expired' ? 'Owner session expired' : 'Owner sign in'} detail="Enter your owner password. The bootstrap token is only needed for setup or recovery." button="Sign in" onSubmit={(password) => api.login(password).then(() => { setError(''); setAuth('authenticated') }).catch(handleError)} onReset={() => { setError(''); setAuth('reset') }} error={error} />
 
   return <div className="app">
-    <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><span className="privacy">Private terminal notifications</span></header>
+    <header><div><span className="brand-mark">›_</span><strong>Shellbell</strong></div><div className="header-tools"><span className="privacy">Private terminal notifications</span><DndControl onError={handleError}/></div></header>
     {offline && <div className="banner" role="status">Offline — showing the current view; changes will not work.</div>}
     {error && <div className="banner error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-    <main>{view === 'rings' ? <Rings onError={handleError} /> : view === 'sources' ? <Sources onError={handleError} /> : view === 'receivers' ? <Receivers onError={handleError} /> : <SettingsView onError={handleError} onLogout={() => api.logout().then(() => setAuth('login')).catch(handleError)} />}</main>
-    <nav aria-label="Main navigation">{(['rings', 'sources', 'receivers', 'settings'] as View[]).map((item) => <button className={view === item ? 'active' : ''} key={item} onClick={() => navigate(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    <main>{view === 'runs' ? <RunsDashboard onError={handleError} onAddSource={() => navigate('sources')} /> : view === 'rings' ? <Rings onError={handleError} /> : view === 'sources' ? <Sources onError={handleError} /> : view === 'receivers' ? <Receivers onError={handleError} /> : <SettingsView onError={handleError} onLogout={() => api.logout().then(() => setAuth('login')).catch(handleError)} />}</main>
+    <nav aria-label="Main navigation">{(['runs', 'rings', 'sources', 'receivers', 'settings'] as View[]).map((item) => <button className={view === item ? 'active' : ''} key={item} onClick={() => navigate(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
   </div>
 }
 
@@ -151,3 +153,4 @@ function SettingsForm({ initialDays, onSave, onLogout }: { initialDays: number; 
   const [days, setDays] = useState(initialDays)
   return <div className="card settings"><label>Ring history retention (days)<input type="number" min="1" max="90" value={days} onChange={(event) => setDays(Number(event.target.value))} /></label><button onClick={() => onSave(days)}>Save settings</button><hr /><button className="secondary" onClick={onLogout}>Sign out and revoke this session</button></div>
 }
+

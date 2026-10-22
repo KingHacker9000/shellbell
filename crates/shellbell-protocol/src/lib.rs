@@ -1,4 +1,6 @@
-//! Shared, wire-compatible Shellbell API models and validation contracts.
+mod runs;
+pub use runs::{RunBeacon, RunState, SlurmJobMetadata};
+// Shared, wire-compatible Shellbell API models and validation contracts.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -184,6 +186,8 @@ pub struct PullReceiverListResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReceiverFeedRing {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub beacon: Option<RunBeacon>,
     pub event_id: Uuid,
     pub source_id: Uuid,
     pub source_name: String,
@@ -205,6 +209,8 @@ pub struct ReceiverFeedAckRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RingRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub beacon: Option<RunBeacon>,
     pub event_id: Uuid,
     pub message: Option<String>,
     #[serde(default)]
@@ -309,6 +315,7 @@ mod tests {
     #[test]
     fn protocol_round_trip_and_enum_shape() {
         let request = RingRequest {
+            beacon: None,
             event_id: Uuid::nil(),
             message: Some("hello".into()),
             target_tags: vec!["pc".into()],
